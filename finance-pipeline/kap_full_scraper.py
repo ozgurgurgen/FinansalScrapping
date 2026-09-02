@@ -1,372 +1,388 @@
-#!/usr/bin/env python3
 """
-KAP Full Scraper - Playwright ile tum sirketlerin finansal/ortak/yonetim verisini cek
-Yeni URL yapisi: /tr/sirket-finansal-bilgileri/{mkk_id}-{slug}
+KAPSAMLI KAP SCRAPER
+Tüm eksik verileri KAP'tan çeker:
+1. Bildirimler (Disclosure API - batch)
+2. Ortaklar (Playwright ile şirket sayfasından)
+3. Yönetim Kurulu (Playwright ile)
+4. Bağlı Ortaklıklar (Playwright ile)
+5. Nakit Akış Detayları (Playwright ile)
+
+Anti-bot: Random delay, UA rotation, batch cooldown
 """
-import sys, io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-import asyncio
-import json
-import sqlite3
-import re
+import psycopg2
+import requests
 import time
 import random
+import sys
+import io
+import json
+import re
+from datetime import datetime, timedelta
 
-DB_PATH = 'finance.db'
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-async def build_url_map():
-    """BIST sirketler sayfasindan mkk_id -> slug eslesmesi olustur"""
-    from playwright.async_api import async_playwright
-    
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            locale='tr-TR'
-        )
-        page = await context.new_page()
-        
-        print('BIST sirketlerinden URL map olusturuluyor...')
-        await page.goto('https://kap.org.tr/tr/bist-sirketler', timeout=30000)
-        await asyncio.sleep(8)
-        
-        # Extract all company links
-        links = await page.evaluate('''() => {
-            return Array.from(document.querySelectorAll('a')).map(a => ({
-                href: a.href,
-                text: a.textContent.trim()
-            })).filter(l => l.href.includes('sirket-bilgileri/ozet/'))
-        }''')
-        
-        url_map = {}
-        for link in links:
-            # Parse: /tr/sirket-bilgileri/ozet/1107-turk-hava-yollari-a-o
-            m = re.search(r'/ozet/(\d+)-(.+)$', link['href'])
-            if m:
-                mkk_id = m.group(1)
-                slug = m.group(2)
-                ticker = link['text'].strip()
-                url_map[ticker] = {'mkk_id': mkk_id, 'slug': slug}
-        
-        print(f'  {len(url_map)} sirket URL map olusturuldu')
-        await browser.close()
-        return url_map
+DB_URL = 'postgresql://admin:admin123@localhost:5432/finance_platform'
+
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+]
+
+def create_session():
+    s = requests.Session()
+    s.headers.update({
+        'User-Agent': random.choice(USER_AGENTS),
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'tr-TR,tr;q=0.9',
+        'Referer': 'https://kap.org.tr',
+        'Origin': 'https://kap.org.tr'
+    })
+    return s
+
+def safe_delay(min_s=2, max_s=5):
+    time.sleep(random.uniform(min_s, max_s))
 
 
-async def scrape_financial_page(page, mkk_id, slug):
-    """Tek bir sirketin finansal bilgiler sayfasini cek"""
-    url = f'https://kap.org.tr/tr/sirket-finansal-bilgileri/{mkk_id}-{slug}'
-    try:
-        await page.goto(url, timeout=25000)
-        await asyncio.sleep(5)
-        text = await page.inner_text('body')
-        
-        if '404' in text[:500]:
-            return None
-        
-        data = {}
-        
-        # Parse FİNANSAL DURUM TABLOSU (Balance Sheet)
-        # Format: "Dönen Varlıklar\t253.043\t341.910\t436.412\t512.191"
-        bs_keywords = {
-            'Dönen Varlıklar': 'current_assets',
-            'Duran Varlıklar': 'non_current_assets',
-            'Toplam Varlıklar': 'total_assets',
-            'Kısa Vadeli Yükümlülükler': 'short_term_debt',
-            'Uzun Vadeli Yükümlülükler': 'long_term_debt',
-            'Toplam Yükümlülükler': 'total_debt',
-            'Ana Ortaklığa Ait Özkaynaklar': 'equity',
-            'Ödenmiş Sermaye': 'paid_capital',
-            # total_equity maps to equity
-        }
-        
-        for line in text.split('\n'):
-            for keyword, field in bs_keywords.items():
-                if line.startswith(keyword):
-                    # Extract last numeric value (most recent period)
-                    nums = re.findall(r'[\d.,]+', line)
-                    nums = [n for n in nums if len(n) > 1]  # Skip single digits
-                    if nums:
-                        val = nums[-1].replace('.', '').replace(',', '.')
-                        try:
-                            data[field] = float(val) * 1000000  # x1000000 TL
-                        except:
-                            pass
-        
-        # Parse KAR VEYA ZARAR (Income Statement)
-        is_keywords = {
-            'Hasılat': 'revenue',
-            'Brüt Kâr': 'gross_profit',
-            'Esas Faaliyet Kârı': 'ebit',
-            'Net Dönem Kârı': 'net_profit',
-        }
-        
-        for line in text.split('\n'):
-            for keyword, field in is_keywords.items():
-                if line.startswith(keyword):
-                    nums = re.findall(r'[\d.,]+', line)
-                    nums = [n for n in nums if len(n) > 1]
-                    if nums:
-                        val = nums[-1].replace('.', '').replace(',', '.')
-                        try:
-                            data[field] = float(val) * 1000000
-                        except:
-                            pass
-        
-        return data
-    except Exception as e:
+def parse_kap_date(date_str):
+    """KAP tarih formatini ISO formatina cevir"""
+    if not date_str:
         return None
-
-
-async def scrape_general_page(page, mkk_id, slug):
-    """Tek bir sirketin genel bilgiler sayfasini cek"""
-    url = f'https://kap.org.tr/tr/sirket-bilgileri/genel/{mkk_id}-{slug}'
     try:
-        await page.goto(url, timeout=25000)
-        await asyncio.sleep(5)
-        text = await page.inner_text('body')
+        # Try DD.MM.YYYY HH:MM:SS
+        if '.' in str(date_str) and len(str(date_str)) > 10:
+            dt = datetime.strptime(str(date_str), '%d.%m.%Y %H:%M:%S')
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
+        # Try DD.MM.YYYY
+        elif '.' in str(date_str):
+            dt = datetime.strptime(str(date_str), '%d.%m.%Y')
+            return dt.strftime('%Y-%m-%d')
+        # Already ISO
+        return str(date_str)[:19]
+    except:
+        return str(date_str)[:10]
+
+
+def scrape_disclosures(session, conn, batch_days=90):
+    """Batch disclosure API ile bildirimleri çek"""
+    c = conn.cursor()
+    
+    print("\n[1] BILDIRIMLER (Disclosure API)...")
+    
+    # Son X gün için bildirimleri çek
+    to_date = datetime.now().strftime('%Y-%m-%d')
+    from_date = (datetime.now() - timedelta(days=batch_days)).strftime('%Y-%m-%d')
+    
+    all_disclosures = []
+    
+    # 6 ayar parçaya böl (rate-limit için)
+    for i in range(6):
+        chunk_from = (datetime.now() - timedelta(days=batch_days - i*15)).strftime('%Y-%m-%d')
+        chunk_to = (datetime.now() - timedelta(days=batch_days - (i+1)*15)).strftime('%Y-%m-%d') if i < 5 else to_date
         
-        if '404' in text[:500]:
-            return None
+        try:
+            r = session.post('https://kap.org.tr/tr/api/disclosure/members/byCriteria',
+                json={'fromDate': chunk_from, 'toDate': chunk_to},
+                timeout=30)
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, list):
+                    all_disclosures.extend(data)
+                    print(f"  Chunk {i+1}/6: {len(data)} bildirim ({chunk_from} ~ {chunk_to})")
+            else:
+                print(f"  Chunk {i+1}/6: HTTP {r.status_code}")
+        except Exception as e:
+            print(f"  Chunk {i+1}/6 HATA: {e}")
         
-        data = {'management': [], 'shareholders': [], 'subsidiaries': [], 'sector': None, 'index_group': None}
+        safe_delay(3, 6)
+    
+    print(f"  Toplam: {len(all_disclosures)} bildirim çekildi")
+    
+    # Company ticker -> id mapping
+    c.execute("SELECT ticker, id FROM kap_companies")
+    ticker_map = {r[0].upper(): r[1] for r in c.fetchall()}
+    
+    # Disclosures kaydet
+    saved = 0
+    for disc in all_disclosures:
+        stocks = (disc.get('relatedStocks', '') or '').upper()
+        if not stocks:
+            continue
         
-        # Parse YÖNETİM KURULU
-        in_yk = False
-        for line in text.split('\n'):
-            if 'Yönetim Kurulu Üyeleri' in line:
-                in_yk = True
-                continue
-            if in_yk:
-                if 'Yönetimde Söz Sahibi' in line:
-                    in_yk = False
-                    continue
-                # Skip header line
-                if 'Adı-Soyadı' in line and 'Görevi' in line:
-                    continue
-                # Lines like: MURAT ŞEKER\t\tErkek\tYönetim Kurulu Başkanı\tEkonomist\t...
-                parts = line.split('\t')
-                if len(parts) >= 4 and parts[0].strip():
-                    name = parts[0].strip()
-                    # Validate: name should be all caps letters/spaces (Turkish name format)
-                    if name and len(name) > 3 and not name.startswith('(') and not name.startswith('*') and name.isupper():
-                        gender = parts[2].strip() if len(parts) > 2 else ''
-                        title = parts[3].strip() if len(parts) > 3 else ''
-                        profession = parts[4].strip() if len(parts) > 4 else ''
-                        data['management'].append({
-                            'name': name,
-                            'gender': gender,
-                            'title': title,
-                            'profession': profession
-                        })
+        # Her hisse için ayrı kayıt
+        for ticker in stocks.split(','):
+            ticker = ticker.strip()
+            if ticker in ticker_map:
+                company_id = ticker_map[ticker]
+                title = disc.get('kapTitle', '') or disc.get('summary', '')
+                pub_date = disc.get('publishDate', '')
+                disc_class = disc.get('disclosureClass', '')
+                disc_type = disc.get('disclosureType', '')
+                
+                # Duplicate kontrol - title benzerligi ile
+                safe_pub_date = parse_kap_date(pub_date)
+                c.execute("""SELECT 1 FROM kap_disclosures 
+                    WHERE company_id=%s AND title=%s""",
+                    (company_id, title))
+                if not c.fetchone():
+                    c.execute("""INSERT INTO kap_disclosures 
+                        (company_id, symbol, title, category, publish_date)
+                        VALUES (%s, %s, %s, %s, %s)""",
+                        (company_id, ticker, title, disc_class or disc_type, safe_pub_date))
+                    saved += 1
+    
+    conn.commit()
+    print(f"  Yeni bildirim: {saved} kaydedildi")
+    return saved
+
+
+def scrape_company_kap_page(session, conn, ticker, company_id):
+    """Playwright yerine requests ile KAP şirket sayfasını çek (hızlı)"""
+    c = conn.cursor()
+    
+    try:
+        url = f'https://kap.org.tr/tr/sirket-bilgileri/ozet/{ticker}'
+        r = session.get(url, timeout=20)
+        if r.status_code != 200:
+            return {}
         
-        # Parse ORTAKLIK YAPISI
-        in_shareholders = False
-        for line in text.split('\n'):
-            if 'Paya veya Oy Hakkına Sahip' in line:
-                in_shareholders = True
-                continue
-            if in_shareholders:
-                if 'Son Durum' in line or 'Fiili Dolaşım' in line:
-                    in_shareholders = False
-                    continue
-                parts = line.split('\t')
-                if len(parts) >= 3:
-                    name = parts[0].strip()
-                    pct_str = parts[2].strip() if len(parts) > 2 else '0'
-                    if name and not name.startswith('(') and not name.startswith('*') and name != 'Ortağın Adı-Soyadı/Ticaret Ünvanı':
-                        data['shareholders'].append({
-                            'name': name,
-                            'percent': pct_str
-                        })
+        html = r.text
+        result = {}
         
-        # Parse BAĞLI ORTAKLIKLAR
-        in_bo = False
-        for line in text.split('\n'):
-            if 'Bağlı Ortaklıklar, Finansal Duran' in line:
-                in_bo = True
-                continue
-            if in_bo:
-                if 'DİĞER HUSUSLAR' in line:
-                    in_bo = False
-                    continue
-                parts = line.split('\t')
-                if len(parts) >= 5 and parts[0].strip():
-                    name = parts[0].strip()
-                    if name and not name.startswith('(') and not name.startswith('*'):
-                        data['subsidiaries'].append({
-                            'name': name,
-                            'activity': parts[1].strip() if len(parts) > 1 else '',
-                            'capital': parts[2].strip() if len(parts) > 2 else '',
-                            'share_pct': parts[4].strip() if len(parts) > 4 else '',
-                        })
+        # Parse shareholder from HTML
+        # Shareholder pattern: <table> içinde "Pay Sahipleri" başlığı
+        # KAP Next.js site'sinde JSON data embedded olabilir
         
-        # Parse Sektör
-        for line in text.split('\n'):
-            if 'Şirketin Sektörü' in line:
-                idx = text.split('\n').index(line)
-                lines = text.split('\n')
-                if idx + 1 < len(lines):
-                    data['sector'] = lines[idx + 1].strip()
-            if 'Şirketin Dahil Olduğu Endeksler' in line:
-                idx = text.split('\n').index(line)
-                lines = text.split('\n')
-                if idx + 1 < len(lines):
-                    data['index_group'] = lines[idx + 1].strip()[:200]
+        # Try to find __NEXT_DATA__ JSON
+        next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
+        if next_data_match:
+            try:
+                nd = json.loads(next_data_match.group(1))
+                props = nd.get('props', {}).get('pageProps', {})
+                
+                # Shareholders
+                shareholders = props.get('shareholders', props.get('ortaklar', []))
+                if shareholders:
+                    for sh in shareholders:
+                        name = sh.get('name', sh.get('ortakAdi', ''))
+                        ratio = sh.get('ratio', sh.get('payOrani', 0))
+                        voting = sh.get('votingPower', sh.get('oyOrani', 0))
+                        if name:
+                            c.execute("""INSERT INTO kap_shareholders 
+                                (company_id, holder_name, share_ratio_percent, voting_power_percent)
+                                VALUES (%s, %s, %s, %s)
+                                ON CONFLICT DO NOTHING""",
+                                (company_id, name, float(ratio) if ratio else 0, float(voting) if voting else 0))
+                            result['shareholders'] = result.get('shareholders', 0) + 1
+                
+                # Management
+                management = props.get('boardMembers', props.get('yonetimKurulu', []))
+                if management:
+                    for mg in management:
+                        name = mg.get('name', mg.get('adSoyad', ''))
+                        title = mg.get('title', mg.get('unvan', ''))
+                        if name:
+                            c.execute("""INSERT INTO kap_management 
+                                (company_id, name, title)
+                                VALUES (%s, %s, %s)
+                                ON CONFLICT DO NOTHING""",
+                                (company_id, name, title))
+                            result['management'] = result.get('management', 0) + 1
+                
+                # Subsidiaries
+                subsidiaries = props.get('subsidiaries', props.get('bagliOrtakliklar', []))
+                if subsidiaries:
+                    for sub in subsidiaries:
+                        name = sub.get('name', sub.get('ortaklikAdi', ''))
+                        share = sub.get('sharePercent', sub.get('payOrani', 0))
+                        if name:
+                            c.execute("""INSERT INTO kap_subsidiaries 
+                                (company_id, subsidiary_name, share_percent)
+                                VALUES (%s, %s, %s)
+                                ON CONFLICT DO NOTHING""",
+                                (company_id, name, float(share) if share else 0))
+                            result['subsidiaries'] = result.get('subsidiaries', 0) + 1
+                            
+            except json.JSONDecodeError:
+                pass
         
-        return data
+        # Fallback: HTML parsing for shareholder table
+        if not result.get('shareholders'):
+            # Look for shareholder data in table rows
+            sh_pattern = re.findall(r'<tr[^>]*>.*?<td[^>]*>(.*?)</td>.*?<td[^>]*>([\d,\.]+)\s*%</td>', html, re.S)
+            if sh_pattern:
+                for name, ratio in sh_pattern[:20]:  # Max 20 shareholders
+                    name = re.sub(r'<[^>]+>', '', name).strip()
+                    ratio_val = float(ratio.replace(',', '.'))
+                    if name and len(name) > 2:
+                        c.execute("""INSERT INTO kap_shareholders 
+                            (company_id, holder_name, share_ratio_percent)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT DO NOTHING""",
+                            (company_id, name, ratio_val))
+                        result['shareholders'] = result.get('shareholders', 0) + 1
+        
+        conn.commit()
+        return result
+        
     except Exception as e:
-        return None
+        return {'error': str(e)}
 
 
-async def run_scraper():
-    """Ana scraper fonksiyonu"""
-    from playwright.async_api import async_playwright
+def scrape_kap_financial_page(session, conn, ticker, company_id):
+    """KAP'tan finansal tablo sayfasını çek - cashflow detayları için"""
+    c = conn.cursor()
     
-    # Build URL map
-    url_map = await build_url_map()
-    
-    db = sqlite3.connect(DB_PATH, timeout=30)
-    db.execute('PRAGMA journal_mode=WAL')
-    db.execute('PRAGMA busy_timeout=5000')
-    c = db.cursor()
-    
-    # Get existing companies
-    companies = c.execute('SELECT id, ticker, mkk_id, company_name FROM companies WHERE mkk_id IS NOT NULL').fetchall()
-    print(f'\n{len(companies)} sirket icin scraping basliyor...')
-    
-    # Create mapping: ticker -> {mkk_id, slug}
-    ticker_to_url = {}
-    for ticker, info in url_map.items():
-        ticker_to_url[ticker.upper()] = info
-    
-    # Also map by mkk_id
-    mkk_to_url = {}
-    for ticker, info in url_map.items():
-        mkk_to_url[info['mkk_id']] = info
-    
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            locale='tr-TR'
-        )
+    try:
+        # KAP financial info page
+        url = f'https://kap.org.tr/tr/sirket-finansal-bilgileri/{ticker}'
+        r = session.get(url, timeout=20)
+        if r.status_code != 200:
+            return {}
         
-        stats = {'financial': 0, 'general': 0, 'errors': 0, 'skipped': 0}
+        html = r.text
+        result = {}
         
-        for idx, (comp_id, ticker, mkk_id, name) in enumerate(companies):
-            # Find URL
-            url_info = ticker_to_url.get(ticker.upper()) or mkk_to_url.get(str(mkk_id))
-            if not url_info:
-                stats['skipped'] += 1
-                continue
+        # __NEXT_DATA__ JSON parse
+        next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
+        if next_data_match:
+            nd = json.loads(next_data_match.group(1))
+            props = nd.get('props', {}).get('pageProps', {})
             
-            if idx % 50 == 0:
-                print(f'\n  [{idx}/{len(companies)}] {ticker} ({name})...')
+            # Cashflow data
+            cashflows = props.get('cashFlow', props.get('cashflow', []))
+            if cashflows:
+                for cf in cashflows:
+                    year = cf.get('year', cf.get('yil'))
+                    period = cf.get('period', cf.get('donem'))
+                    if year and period:
+                        c.execute("""UPDATE kap_cashflows 
+                            SET depreciation=%s, capex=%s, 
+                                investing_cash_flow=%s, financing_cash_flow=%s
+                            WHERE company_id=%s AND year=%s AND period=%s""",
+                            (cf.get('depreciation'), cf.get('capex'),
+                             cf.get('investingCashFlow', cf.get('yatirimFaaliyetleri')),
+                             cf.get('financingCashFlow', cf.get('finansmanFaaliyetleri')),
+                             company_id, str(year), str(period)))
+                        result['cashflows'] = result.get('cashflows', 0) + 1
             
-            page = await context.new_page()
-            
-            # 1. Finansal veri
-            fin_data = await scrape_financial_page(page, url_info['mkk_id'], url_info['slug'])
-            if fin_data:
-                # Update only the MOST RECENT period for this company
-                c.execute('''SELECT id FROM financials WHERE company_id = ? 
-                    ORDER BY year DESC, period DESC LIMIT 1''', (comp_id,))
-                row = c.fetchone()
-                if row:
-                    fin_id = row[0]
-                    for field, value in fin_data.items():
-                        if value and value != 0:
-                            c.execute(f'''UPDATE financials SET {field} = ? WHERE id = ?''',
-                                (value, fin_id))
-                stats['financial'] += 1
-            
-            # Anti-ban gecikme
-            await asyncio.sleep(random.uniform(2.0, 4.0))
-            
-            # 2. Genel bilgi
-            gen_data = await scrape_general_page(page, url_info['mkk_id'], url_info['slug'])
-            if gen_data:
-                # Save management
-                if gen_data.get('management'):
-                    for mgmt in gen_data['management']:
-                        try:
-                            c.execute('''INSERT OR IGNORE INTO management_members 
-                                (company_id, name, title, member_type)
-                                VALUES (?, ?, ?, ?)''',
-                                (comp_id, mgmt['name'], mgmt['title'], 'YK'))
-                        except sqlite3.OperationalError:
-                            db.rollback()
-                            time.sleep(2)
-                
-                # Save shareholders
-                if gen_data.get('shareholders'):
-                    for sh in gen_data['shareholders']:
-                        pct = sh.get('percent', '0').replace('%', '').replace(',', '.').strip()
-                        try:
-                            pct_val = float(pct)
-                        except:
-                            pct_val = 0
-                        try:
-                            c.execute('''INSERT OR IGNORE INTO shareholders
-                                (company_id, holder_name, share_ratio_percent, holder_type)
-                                VALUES (?, ?, ?, ?)''',
-                                (comp_id, sh['name'], pct_val, 'BILDIRIMEN'))
-                        except sqlite3.OperationalError:
-                            db.rollback()
-                            time.sleep(2)
-                
-                # Save subsidiaries
-                if gen_data.get('subsidiaries'):
-                    for sub in gen_data['subsidiaries']:
-                        pct_str = sub.get('share_pct', '0').replace('%', '').replace(',', '.').strip()
-                        try:
-                            pct_val = float(pct_str)
-                        except:
-                            pct_val = 0
-                        try:
-                            rel = 'BAGLI_ORTAKLIK' if float(pct_val) > 50 else 'ISTIRAK'
-                            c.execute('''INSERT OR IGNORE INTO subsidiaries
-                                (company_id, name, activity, share_percent, relation_type)
-                                VALUES (?, ?, ?, ?, ?)''',
-                                (comp_id, sub['name'], sub['activity'], pct_val, rel))
-                        except sqlite3.OperationalError:
-                            db.rollback()
-                            time.sleep(2)
-                
-                # Update sector
-                if gen_data.get('sector'):
-                    c.execute('UPDATE companies SET sector = ? WHERE id = ? AND (sector IS NULL OR sector = "")',
-                        (gen_data['sector'], comp_id))
-                
-                # Update index_group
-                if gen_data.get('index_group'):
-                    c.execute('UPDATE companies SET index_group = ? WHERE id = ?',
-                        (gen_data['index_group'], comp_id))
-                
-                stats['general'] += 1
-            
-            await page.close()
-            
-            # Anti-ban
-            await asyncio.sleep(random.uniform(3.0, 6.0))
-            
-            # Commit every 20 companies
-            if idx % 20 == 0:
-                db.commit()
+            # Financial details
+            financials = props.get('financials', props.get('finansalTablolar', []))
+            if financials:
+                for fin in financials:
+                    year = fin.get('year', fin.get('yil'))
+                    period = fin.get('period', fin.get('donem'))
+                    if year and period:
+                        c.execute("""UPDATE kap_financials 
+                            SET current_assets=%s, cash_and_equivalents=%s, 
+                                financial_debt=%s, total_debt=%s
+                            WHERE company_id=%s AND year=%s AND period=%s
+                            AND (current_assets IS NULL)""",
+                            (fin.get('currentAssets', fin.get('donenVarliklar')),
+                             fin.get('cashAndEquivalents', fin.get('nakitVeNakitBenzerleri')),
+                             fin.get('financialDebt', fin.get('finansalBorclar')),
+                             fin.get('totalDebt', fin.get('toplamBorc')),
+                             company_id, str(year), str(period)))
+                        result['financials'] = result.get('financials', 0) + 1
         
-        await browser.close()
+        conn.commit()
+        return result
+        
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def main():
+    conn = psycopg2.connect(DB_URL)
+    c = conn.cursor()
     
-    db.commit()
-    db.close()
+    print("=" * 60)
+    print("KAPSAMLI KAP SCRAPER")
+    print("=" * 60)
     
-    print(f'\n{"="*70}')
-    print(f'SCRAPING TAMAMLANDI')
-    print(f'  Finansal: {stats["financial"]} sirket')
-    print(f'  Genel: {stats["general"]} sirket')
-    print(f'  Hata: {stats["errors"]}')
-    print(f'  Atlanan: {stats["skipped"]}')
-    print(f'{"="*70}')
+    # Get all companies
+    c.execute("SELECT id, ticker FROM kap_companies ORDER BY id")
+    companies = c.fetchall()
+    print(f"Toplam {len(companies)} şirket")
+    
+    # 1. Disclosure batch scrape
+    session = create_session()
+    scrape_disclosures(session, conn, batch_days=180)
+    
+    safe_delay(5, 8)
+    
+    # 2. Company pages scrape (shareholder, management, subsidiaries)
+    print(f"\n[2] SIRKET SAYFALARI (toplam {len(companies)} sirket)...")
+    
+    success = 0
+    failed = 0
+    
+    for idx, (company_id, ticker) in enumerate(companies):
+        # Her 20 şirkette session yenile
+        if idx % 20 == 0:
+            session = create_session()
+            if idx > 0:
+                print(f"  [Cooldown] 30sn bekleniyor...")
+                time.sleep(30)
+        
+        # Company page
+        result = scrape_company_kap_page(session, conn, ticker, company_id)
+        
+        if 'error' not in result:
+            success += 1
+            items = sum(v for k, v in result.items() if isinstance(v, int) and k != 'error')
+            if items > 0:
+                print(f"  [{idx+1}/{len(companies)}] {ticker}: {result}")
+        else:
+            failed += 1
+            if idx < 5:
+                print(f"  [{idx+1}/{len(companies)}] {ticker}: HATA - {result['error'][:50]}")
+        
+        safe_delay(2, 4)
+    
+    print(f"\n  Sirket sayfasi: {success} basarili, {failed} basarisiz")
+    
+    # 3. Financial page scrape
+    print(f"\n[3] FINANSAL SAYFALAR...")
+    session = create_session()
+    
+    fin_success = 0
+    for idx, (company_id, ticker) in enumerate(companies[:100]):  # First 100
+        if idx % 20 == 0:
+            session = create_session()
+            if idx > 0:
+                time.sleep(30)
+        
+        result = scrape_kap_financial_page(session, conn, ticker, company_id)
+        if 'error' not in result:
+            fin_success += 1
+            items = sum(v for k, v in result.items() if isinstance(v, int) and k != 'error')
+            if items > 0:
+                print(f"  [{idx+1}] {ticker}: {result}")
+        
+        safe_delay(2, 4)
+    
+    print(f"  Finansal sayfa: {fin_success} basarili")
+    
+    # Final stats
+    print("\n" + "=" * 60)
+    print("FINAL DURUM")
+    print("=" * 60)
+    
+    for tbl, col in [('kap_disclosures','company_id'), ('kap_shareholders','company_id'), 
+                      ('kap_management','company_id'), ('kap_subsidiaries','company_id')]:
+        c.execute(f"SELECT COUNT(*) FROM {tbl}")
+        total = c.fetchone()[0]
+        c.execute(f"SELECT COUNT(DISTINCT {col}) FROM {tbl} WHERE {col} IS NOT NULL")
+        companies_with = c.fetchone()[0]
+        print(f"  {tbl}: {total} kayit, {companies_with} sirket")
+    
+    conn.close()
+    print("\nTAMAMLANDI!")
+
 
 if __name__ == '__main__':
-    asyncio.run(run_scraper())
+    main()
