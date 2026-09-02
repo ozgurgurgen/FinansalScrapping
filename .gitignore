@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+*.log.err
+dashboard_err.log
+kap_worker.log
+kap_worker_err.log
+tefas_worker.log
+tefas_worker_err.log
+market_data.log
+
+# Environment
+.env
+.env.local
+
+# Cloudflare
+cloudflared.exe
+cloudflared.zip
+
+# Node
+node_modules/
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Pipeline progress files
+*_progress.json
+
+# Export files
+*.csv
+*.zip
+exports/
+
+# Freebuff
+.freebuff/

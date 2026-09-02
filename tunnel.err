@@ -1,0 +1,39 @@
+2026-09-01T06:21:21Z INF Thank you for trying Cloudflare Tunnel. Doing so, without a Cloudflare account, is a quick way to experiment and try it out. However, be aware that these account-less Tunnels have no uptime guarantee, are subject to the Cloudflare Online Services Terms of Use (https://www.cloudflare.com/website-terms/), and Cloudflare reserves the right to investigate your use of Tunnels for violations of such terms. If you intend to use Tunnels in production you should use a pre-created named tunnel by following: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
+2026-09-01T06:21:21Z INF Requesting new quick Tunnel on trycloudflare.com...
+2026-09-01T06:21:26Z INF +--------------------------------------------------------------------------------------------+
+2026-09-01T06:21:26Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
+2026-09-01T06:21:26Z INF |  https://signal-invitations-draws-perspectives.trycloudflare.com                           |
+2026-09-01T06:21:26Z INF +--------------------------------------------------------------------------------------------+
+2026-09-01T06:21:26Z INF Cannot determine default configuration path. No file [config.yml config.yaml] in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp]
+2026-09-01T06:21:26Z INF Version 2024.10.1 (Checksum a78b5ae65d154f667f163fa7bac5c0e817cbb79d607f624cef17a6848e67afc0)
+2026-09-01T06:21:26Z INF GOOS: windows, GOVersion: go1.22.2-devel-cf, GoArch: amd64
+2026-09-01T06:21:26Z INF Settings: map[ha-connections:1 protocol:quic url:http://localhost:3000]
+2026-09-01T06:21:26Z INF cloudflared will not automatically update on Windows systems.
+2026-09-01T06:21:26Z INF Generated Connector ID: e67d4873-2ee3-4161-8801-84a5ea4e99bb
+2026-09-01T06:21:26Z INF Initial protocol quic
+2026-09-01T06:21:26Z INF ICMP proxy will use 172.16.228.139 as source for IPv4
+2026-09-01T06:21:26Z INF ICMP proxy will use ::1 in zone Loopback Pseudo-Interface 1 as source for IPv6
+2026-09-01T06:21:26Z INF cloudflared does not support loading the system root certificate pool on Windows. Please use --origin-ca-pool <PATH> to specify the path to the certificate pool
+2026-09-01T06:21:26Z INF Starting metrics server on 127.0.0.1:55115/metrics
+2026-09-01T06:21:27Z INF Registered tunnel connection connIndex=0 connection=763d8db8-24bd-4f16-8f6e-f15114ef56c9 event=0 ip=198.41.192.67 location=ist05 protocol=quic
+2026-09-01T06:28:31Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:3000
+2026-09-01T06:28:31Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://signal-invitations-draws-perspectives.trycloudflare.com/api/progress event=0 ip=198.41.192.67 type=http
+2026-09-01T06:28:31Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:3000
+2026-09-01T06:28:31Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://signal-invitations-draws-perspectives.trycloudflare.com/api/service-status/kap_worker event=0 ip=198.41.192.67 type=http
+2026-09-01T06:28:31Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:3000
+2026-09-01T06:28:31Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://signal-invitations-draws-perspectives.trycloudflare.com/api/service-status/market_data_worker event=0 ip=198.41.192.67 type=http
+2026-09-01T06:31:28Z ERR  error="Unable to reach the origin service. The service may be down or it may not be responding to traffic from cloudflared: dial tcp [::1]:3000: connectex: Hedef makine etkin olarak reddettiğinden bağlantı kurulamadı." connIndex=0 event=1 ingressRule=0 originService=http://localhost:3000
+2026-09-01T06:31:28Z ERR Request failed error="Unable to reach the origin service. The service may be down or it may not be responding to traffic from cloudflared: dial tcp [::1]:3000: connectex: Hedef makine etkin olarak reddettiğinden bağlantı kurulamadı." connIndex=0 dest=https://signal-invitations-draws-perspectives.trycloudflare.com/api/funds event=0 ip=198.41.192.67 type=http
+2026-09-01T06:54:37Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:3000
+2026-09-01T06:54:37Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://signal-invitations-draws-perspectives.trycloudflare.com/api/funds event=0 ip=198.41.192.67 type=http
+2026-09-01T06:54:41Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:3000
+2026-09-01T06:54:41Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://signal-invitations-draws-perspectives.trycloudflare.com/api/funds event=0 ip=198.41.192.67 type=http
+2026-09-01T16:25:35Z ERR Failed to serve quic connection error="timeout: no recent network activity" connIndex=0 event=0 ip=198.41.192.67
+2026-09-01T16:25:35Z ERR Serve tunnel error error="timeout: no recent network activity" connIndex=0 event=0 ip=198.41.192.67
+2026-09-01T16:25:35Z INF Retrying connection in up to 1s connIndex=0 event=0 ip=198.41.192.67
+2026-09-01T16:25:35Z INF Registered tunnel connection connIndex=0 connection=b9a04013-bbcd-4fb5-87d0-d3515da348a5 event=0 ip=198.41.200.193 location=ist03 protocol=quic
+2026-09-01T16:36:58Z ERR Failed to serve quic connection error="timeout: no recent network activity" connIndex=0 event=0 ip=198.41.200.193
+2026-09-01T16:37:00Z ERR Serve tunnel error error="timeout: no recent network activity" connIndex=0 event=0 ip=198.41.200.193
+2026-09-01T16:37:00Z INF Retrying connection in up to 1s connIndex=0 event=0 ip=198.41.200.193
+2026-09-01T16:37:02Z INF Registered tunnel connection connIndex=0 connection=c7d87ffd-dec6-4f4d-afa0-81dfbd8d92e2 event=0 ip=198.41.192.47 location=ist05 protocol=quic
+2026-09-02T06:21:25Z WRN Your version 2024.10.1 is outdated. We recommend upgrading it to 2026.8.3

@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  postgres_db:
+    image: postgres:15
+    container_name: pipeline_db
+    environment:
+      POSTGRES_DB: finance_platform
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d finance_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kap_worker:
+    container_name: kap_worker_service
+    build:
+      context: .
+      dockerfile: services/kap_worker/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://admin:secret_password@postgres_db:5432/finance_platform
+      - PYTHONPATH=/app
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  tefas_worker:
+    container_name: tefas_worker_service
+    build:
+      context: .
+      dockerfile: services/tefas_worker/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://admin:secret_password@postgres_db:5432/finance_platform
+      - PYTHONPATH=/app
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  market_data_worker:
+    container_name: market_data_worker_service
+    build:
+      context: .
+      dockerfile: services/market_data_worker/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://admin:secret_password@postgres_db:5432/finance_platform
+      - PYTHONPATH=/app
+      - TCMB_API_KEY=${TCMB_API_KEY:-}
+      - TUIK_API_KEY=${TUIK_API_KEY:-}
+      - FRED_API_KEY=${FRED_API_KEY:-}
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  admin_dashboard:
+    container_name: admin_dashboard_service
+    build:
+      context: .
+      dockerfile: services/admin_dashboard/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      # CRITICAL: Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DATABASE_URL=postgresql://admin:secret_password@postgres_db:5432/finance_platform
+      - PYTHONPATH=/app
+    depends_on:
+      - kap_worker
+      - tefas_worker
+      - market_data_worker
+    restart: unless-stopped
+
+volumes:
+  pgdata:

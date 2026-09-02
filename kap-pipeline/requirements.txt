@@ -1,0 +1,19 @@
+# KAP Pipeline Dependencies
+# =========================
+# Core HTTP & Parsing
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+
+# Data Processing
+pandas>=2.1.0
+
+# Scheduling
+apscheduler>=3.10.0
+
+# Utilities
+python-dateutil>=2.8.0

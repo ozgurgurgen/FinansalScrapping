@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "borsa-mcp"
+version = "1.0.0"
+description = "Unified MCP Server for BIST, US stocks, crypto, funds, and FX data. 23 consolidated tools with cross-market return comparison."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.14.0",
+    "pydantic>=2.7.0",
+    "httpx>=0.27.0",
+    "pdfplumber>=0.11.0",
+    "beautifulsoup4>=4.12.3",
+    "lxml>=5.2.0",
+    # 1.5.x is required: FastInfo's mapping keys are camelCase (lastPrice, marketCap),
+    # so the snake_case .get('last_price') the provider used returned None for every
+    # price field — silently, because strip_nulls then removed them.
+    "yfinance>=1.5.1",
+    "pandas>=2.0.0",
+    "markitdown>=0.1.1",
+    "openpyxl>=3.1.5",
+    "requests>=2.31.0",
+    "borsapy>=0.11.0",
+    "yfscreen>=0.1.1",
+]
+
+[project.scripts]
+borsa-mcp = "unified_mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["providers*", "models*"]
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.4.0",
+]
+
+[tool.setuptools]
+py-modules = ["unified_mcp_server", "borsa_client", "borsa_models", "fon_mevzuat_kisa", "token_optimizer", "compact_json_optimizer"]
+include-package-data = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "live: hits real providers over the network; excluded from the default run",
+]
+addopts = "-m 'not live'"
+
+[tool.ruff]
+target-version = "py312"
+exclude = ["tests/adhoc", "build", ".venv"]
+
+[tool.ruff.lint]
+# Defaults (E4, E7, E9, F) plus the rules that catch the failure mode this codebase
+# keeps producing: an exception swallowed into a plausible-looking value.
+select = ["E4", "E7", "E9", "F", "B904", "B012"]
+
+[tool.ruff.lint.per-file-ignores]
+# unified_mcp_server.py patches mcp.types' pydantic models to reject null JSON-RPC IDs,
+# and model_rebuild() must run BEFORE anything else imports those models. The imports
+# below that block are therefore deliberately not at the top of the file.
+"unified_mcp_server.py" = ["E402"]

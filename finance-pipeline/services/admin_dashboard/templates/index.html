@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Finance Pipeline — Command Center</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={darkMode:'class',theme:{extend:{colors:{dark:{950:'#0b0f17',900:'#0f172a',850:'#162032',800:'#1e293b',700:'#334155',600:'#475569',500:'#64748b',400:'#94a3b8',300:'#cbd5e1',200:'#e2e8f0',100:'#f1f5f9'}},fontFamily:{sans:['system-ui','-apple-system','sans-serif'],mono:['ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']}}}}
+</script>
+<style>
+*{scrollbar-width:thin;scrollbar-color:#334155 #0f172a}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#0f172a}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:999px}
+body{background:#0b0f17;color:#f1f5f9;font-family:system-ui,-apple-system,sans-serif}
+.glass-strong{background:rgba(15,23,42,0.8);backdrop-filter:blur(24px);border:1px solid rgba(51,65,85,0.5);border-radius:16px}
+.stat-chip{background:rgba(30,41,59,0.5);border:1px solid rgba(51,65,85,0.3);border-radius:12px;padding:12px 16px;text-align:center;transition:all 0.2s}
+.stat-chip:hover{border-color:rgba(99,102,241,0.3);background:rgba(30,41,59,0.7)}
+@keyframes pulseRing{0%{transform:scale(1);opacity:.8}100%{transform:scale(2.2);opacity:0}}
+.live-dot{position:relative}
+.live-dot::after{content:'';position:absolute;inset:-2px;border-radius:50%;border:2px solid currentColor;animation:pulseRing 2s ease-out infinite}
+.tab-link{position:relative;color:#64748b;transition:color 0.15s}
+.tab-link:hover{color:#94a3b8}
+.tab-link.active{color:#06b6d4}
+.tab-link.active::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:linear-gradient(90deg,#06b6d4,#8b5cf6);border-radius:2px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;border:1px solid transparent}
+.btn:active{transform:scale(0.96)}
+.btn-cyan{background:rgba(6,182,212,0.15);color:#22d3ee;border-color:rgba(6,182,212,0.3)}
+.btn-cyan:hover{background:rgba(6,182,212,0.25)}
+.btn-emerald{background:rgba(16,185,129,0.15);color:#34d399;border-color:rgba(16,185,129,0.3)}
+.btn-emerald:hover{background:rgba(16,185,129,0.25)}
+.btn-rose{background:rgba(244,63,94,0.15);color:#fb7185;border-color:rgba(244,63,94,0.3)}
+.btn-rose:hover{background:rgba(244,63,94,0.25)}
+.btn-slate{background:rgba(30,41,59,0.6);color:#cbd5e1;border-color:rgba(51,65,85,0.5)}
+.btn-slate:hover{background:rgba(51,65,85,0.6)}
+.toggle{position:relative;width:40px;height:22px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:#334155;border-radius:22px;transition:0.3s}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;background:white;border-radius:50%;transition:0.3s}
+.toggle input:checked+.toggle-track{background:#0891b2}
+.toggle input:checked+.toggle-track+.toggle-thumb{transform:translateX(18px)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px}
+.badge-running{background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.25)}
+.badge-stopped{background:rgba(244,63,94,0.12);color:#fb7185;border:1px solid rgba(244,63,94,0.25)}
+.badge-scraping{background:rgba(6,182,212,0.12);color:#22d3ee;border:1px solid rgba(6,182,212,0.25)}
+.badge-idle{background:rgba(100,116,139,0.12);color:#94a3b8;border:1px solid rgba(100,116,139,0.25)}
+.terminal{background:#080c14;border:1px solid rgba(51,65,85,0.3);border-radius:12px;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.7;color:#64748b;padding:14px;overflow-y:auto;height:340px}
+.terminal::-webkit-scrollbar{width:4px}
+.terminal::-webkit-scrollbar-thumb{background:#1e293b;border-radius:4px}
+.log-error{color:#f87171!important}.log-success{color:#34d399!important}.log-info{color:#38bdf8!important}.log-warn{color:#fbbf24!important}
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{text-align:left;padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#475569;border-bottom:1px solid rgba(51,65,85,0.3);font-weight:600}
+.data-table td{padding:8px 12px;font-size:13px;border-bottom:1px solid rgba(15,23,42,0.8)}
+.data-table tr:hover td{background:rgba(30,41,59,0.3)}
+.input-dark{background:rgba(15,23,42,0.8);color:#f1f5f9;border:1px solid rgba(51,65,85,0.4);border-radius:8px;padding:6px 10px;font-size:12px;outline:none;transition:border-color 0.15s}
+.input-dark:focus{border-color:rgba(6,182,212,0.5)}
+.input-dark::placeholder{color:#475569}
+.fade-up{animation:fadeUp .35s ease-out}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+/* ═══ PROGRESS BAR ═══ */
+.progress-container{margin-bottom:8px}
+.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.progress-track{width:100%;height:8px;background:rgba(30,41,59,0.8);border-radius:99px;overflow:hidden;position:relative;border:1px solid rgba(51,65,85,0.3)}
+.progress-fill{height:100%;border-radius:99px;transition:width 0.8s cubic-bezier(0.22,1,0.36,1);position:relative}
+.progress-fill::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.15) 50%,transparent 100%);animation:progressShine 2s ease-in-out infinite}
+@keyframes progressShine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.progress-fill.active{animation:progressGlow 1.5s ease-in-out infinite alternate}
+@keyframes progressGlow{0%{box-shadow:0 0 4px rgba(6,182,212,0.3)}100%{box-shadow:0 0 12px rgba(6,182,212,0.6)}}
+.progress-fill.kap{background:linear-gradient(90deg,#0284c7,#0ea5e9,#38bdf8)}
+.progress-fill.tefas{background:linear-gradient(90deg,#7c3aed,#8b5cf6,#a78bfa)}
+.progress-fill.market{background:linear-gradient(90deg,#0891b2,#06b6d4,#22d3ee)}
+.progress-fill.done{background:linear-gradient(90deg,#059669,#10b981,#34d399)!important;animation:none!important}
+.progress-fill.done::after{animation:none!important}
+.progress-pulse{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;animation:progressDot 1s ease-in-out infinite}
+@keyframes progressDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
+.progress-pulse.kap{background:#0ea5e9}
+.progress-pulse.tefas{background:#8b5cf6}
+.progress-pulse.market{background:#06b6d4}
+.progress-pulse.done{background:#10b981;animation:none}
+</style>
+</head>
+<body class="min-h-screen antialiased">
+<header class="sticky top-0 z-50 border-b border-dark-700/60" style="background:rgba(11,15,23,0.85);backdrop-filter:blur(20px)">
+<div class="max-w-[1440px] mx-auto px-6 py-3 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm" style="background:linear-gradient(135deg,#06b6d4,#8b5cf6)">FP</div>
+    <div>
+      <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-2">Finance Pipeline <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">v2.0</span></h1>
+      <p class="text-[10px] text-dark-500 tracking-widest uppercase">Command Center</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-4">
+    <div id="docker-badge" class="badge badge-idle"><span class="w-1.5 h-1.5 rounded-full bg-dark-500"></span> Local</div>
+    <div id="tunnel-badge" class="badge badge-idle"><span class="w-1.5 h-1.5 rounded-full bg-dark-500"></span> Tunnel: ...</div>
+    <div class="h-4 w-px bg-dark-700"></div>
+    <span id="clock" class="font-mono text-dark-500 text-xs"></span>
+  </div>
+</div>
+</header>
+<nav class="max-w-[1440px] mx-auto px-6 pt-3">
+<div class="flex gap-0.5 border-b border-dark-700/50 overflow-x-auto">
+  <button onclick="showTab('services')" id="tab-services" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🖥️ Servisler</button>
+  <button onclick="showTab('dataflow')" id="tab-dataflow" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">📡 Veri Akisi</button>
+  <button onclick="showTab('funds')" id="tab-funds" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">💰 TEFAS Fonlar</button>
+  <button onclick="showTab('fund-holdings')" id="tab-fund-holdings" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🔍 Hisse Dağılımı</button>
+  <button onclick="showTab('market')" id="tab-market" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🌍 Piyasa</button>
+  <button onclick="showTab('kap')" id="tab-kap" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">📈 KAP</button>
+  <button onclick="showTab('schedule')" id="tab-schedule" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">⏰ Zamanlama</button>
+  <button onclick="showTab('technical')" id="tab-technical" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">📊 Teknik Analiz</button>
+  <button onclick="showTab('buffett')" id="tab-buffett" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🎯 Buffett</button>
+  <button onclick="showTab('screener')" id="tab-screener" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🔍 Screener</button>
+  <button onclick="showTab('macro')" id="tab-macro" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🏛️ Makro Veri</button>
+  <button onclick="showTab('calendar')" id="tab-calendar" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">📅 Takvim</button>
+  <button onclick="showTab('us')" id="tab-us" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🇺🇸 ABD</button>
+  <button onclick="showTab('api')" id="tab-api" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🔌 API</button>
+</div>
+</nav>
+<main class="max-w-[1440px] mx-auto px-6 py-5 space-y-5">
+
+<!-- SERVICES PAGE -->
+<div id="page-services">
+<div id="global-stats" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+<!-- PROGRESS BARS -->
+<div id="progress-container" class="glass-strong p-4 mt-4">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="text-lg">⚡</span>
+    <span class="font-bold text-white text-sm">Veri Çekim İlerlemesi</span>
+    <span id="progress-live" class="ml-auto flex items-center gap-1.5 text-[10px] text-dark-500">
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Canlı
+    </span>
+  </div>
+  <div id="progress-bars" class="space-y-3">
+    <div class="text-dark-600 text-xs">Yükleniyor...</div>
+  </div>
+</div>
+<div id="services-container" class="space-y-4 mt-4"></div>
+<div class="glass-strong p-5 mt-4">
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-2.5"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-amber-500/15 text-amber-400 text-sm">⚡</span><div><span class="font-bold text-white text-sm">KAP Modul Yonetimi</span><p class="text-[10px] text-dark-500">Tek tek veya toplu calistir</p></div></div>
+    <button onclick="triggerKapAll()" class="btn btn-cyan" id="kap-all-btn">⚡ Tumu Calistir</button>
+  </div>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5" id="kap-modules-grid"></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-4">
+  <div class="glass-strong p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2"><span class="text-xs">🖥️</span><span class="font-bold text-white text-sm">Canli Terminal</span></div>
+      <div class="flex items-center gap-2">
+        <select id="log-select" class="input-dark text-xs py-1"><option value="kap_worker">KAP</option><option value="tefas_worker">TEFAS</option><option value="market_data_worker">Market</option></select>
+        <button onclick="fetchLogs()" class="btn btn-slate text-[10px] py-1 px-2">🔄</button>
+        <label class="flex items-center gap-1.5 text-[11px] text-dark-500 cursor-pointer"><input type="checkbox" id="auto-log" checked class="rounded"> Auto</label>
+      </div>
+    </div>
+    <div id="terminal" class="terminal"><div class="text-dark-600">Log bekleniyor...</div></div>
+  </div>
+  <div class="glass-strong p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2"><span class="text-xs">📊</span><span class="font-bold text-white text-sm">Son Islemler</span></div>
+      <button onclick="refreshHistory()" class="btn btn-slate text-[10px] py-1 px-2">🔄 Yenile</button>
+    </div>
+    <div class="overflow-y-auto" style="max-height:300px"><table class="data-table"><thead><tr><th>Servis</th><th>Modul</th><th>Durum</th><th class="text-right">Kayit</th><th>Sure</th></tr></thead><tbody id="history-body"><tr><td colspan="5" class="text-center text-dark-600 py-6">Yukleniyor...</td></tr></tbody></table></div>
+  </div>
+</div>
+</div>
+
+<!-- DATA FLOW PAGE -->
+<div id="page-dataflow" style="display:none">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+  <div class="lg:col-span-2 glass-strong p-5">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2.5"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-cyan-500/15 text-cyan-400 text-sm live-dot">📡</span><div><span class="font-bold text-white text-sm">Canli Veri Akisi</span><p class="text-[10px] text-dark-500">Gercek zamanli veri cekim loglari</p></div></div>
+      <div class="flex items-center gap-2">
+        <select id="flow-log-select" class="input-dark text-xs py-1"><option value="all">Tum Servisler</option><option value="kap_worker">KAP</option><option value="tefas_worker">TEFAS</option><option value="market_data_worker">Market</option></select>
+        <button onclick="fetchFlowLogs()" class="btn btn-slate text-[10px] py-1 px-2">🔄</button>
+      </div>
+    </div>
+    <div id="flow-terminal" class="terminal" style="height:450px"><div class="text-dark-600">Veri akisi bekleniyor...</div></div>
+  </div>
+  <div class="space-y-4">
+    <div class="glass-strong p-5"><div class="flex items-center gap-2 mb-3"><span class="text-sm">📊</span><span class="font-bold text-white text-sm">Aktiflik Ozeti</span></div><div id="activity-stats" class="space-y-3"></div></div>
+    <div class="glass-strong p-5"><div class="flex items-center gap-2 mb-3"><span class="text-sm">🕐</span><span class="font-bold text-white text-sm">Son Guncellemeler</span></div><div id="recent-updates" class="space-y-2"></div></div>
+    <div class="glass-strong p-5"><div class="flex items-center gap-2 mb-3"><span class="text-sm">⚠️</span><span class="font-bold text-white text-sm">Ban Durumu</span></div><div id="ban-overview"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- FUNDS PAGE -->
+<div id="page-funds" style="display:none">
+<div class="glass-strong p-5 mb-5">
+  <div class="flex items-center gap-4 flex-wrap">
+    <div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-500/15 text-purple-400 text-sm">💰</span><span class="font-bold text-white">Fon Sec:</span></div>
+    <select id="fund-select" class="input-dark py-2" style="min-width:280px"><option value="">Fon seciniz...</option></select>
+    <button onclick="loadFundDetail()" class="btn btn-cyan">🔍 Gorester</button>
+    <div class="ml-auto flex gap-1.5">
+      <button onclick="loadFundChart(90)" class="btn btn-slate text-[11px] py-1">3 Ay</button>
+      <button onclick="loadFundChart(180)" class="btn btn-slate text-[11px] py-1">6 Ay</button>
+      <button onclick="loadFundChart(365)" class="btn btn-slate text-[11px] py-1">1 Yil</button>
+      <button onclick="loadFundChart(730)" class="btn btn-slate text-[11px] py-1">2 Yil</button>
+      <button onclick="loadFundChart(1825)" class="btn btn-slate text-[11px] py-1">5 Yil</button>
+    </div>
+  </div>
+</div>
+<div id="fund-info" style="display:none">
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-4" id="fund-stats-grid"></div>
+  <div class="glass-strong p-5 mb-4" id="fund-title-card" style="display:none">
+    <div class="flex items-center gap-3"><span class="w-10 h-10 rounded-xl flex items-center justify-center bg-purple-500/15 text-purple-400">📊</span><div><h2 id="fund-title" class="text-lg font-bold text-white"></h2><p id="fund-subtitle" class="text-xs text-dark-500 mt-0.5"></p></div></div>
+  </div>
+  <div class="glass-strong p-5 mb-4">
+    <div class="flex items-center justify-between mb-3"><span class="font-bold text-white text-sm">📈 Fiyat Grafigi</span><span id="chart-range" class="text-xs text-dark-500 font-mono"></span></div>
+    <canvas id="price-chart" height="220"></canvas>
+  </div>
+  <div class="glass-strong p-5">
+    <div class="flex items-center justify-between mb-3"><span class="font-bold text-white text-sm">📋 Fiyat Gecmisi</span><span id="table-count" class="text-xs text-dark-500"></span></div>
+    <div class="overflow-y-auto" style="max-height:400px"><table class="data-table"><thead><tr><th>Tarih</th><th class="text-right">Fiyat (TL)</th><th class="text-right">Degisim</th><th class="text-right">lk Fiyata Gore</th></tr></thead><tbody id="fund-price-body"></tbody></table></div>
+  </div>
+</div>
+<div id="fund-empty" class="glass-strong text-center py-16"><div class="text-5xl mb-3 opacity-40">💰</div><div class="text-dark-500 font-medium">Yukaridan bir fon secin</div><div class="text-xs text-dark-600 mt-1.5">Fiyat gecmisi, grafik ve istatistikler burada gorunecek</div></div>
+</div>
+
+<!-- FUND HOLDINGS / REVERSE LOOKUP -->
+<div id="page-fund-holdings" style="display:none">
+<div class="glass-strong p-5 mb-4">
+  <div class="flex items-center gap-2 mb-3"><span class="w-7 h-7 rounded-lg flex items-center justify-center bg-rose-500/15 text-rose-400 text-xs">🔍</span><span class="font-bold text-white text-sm">Hisse Bazli Fon Tarama</span><span class="text-xs text-dark-500 ml-2">Hangi fonlar hangi sektorlerde yatirim yapiyor?</span></div>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4" id="fund-holdings-stats"></div>
+  <div class="flex items-center gap-2 mb-3">
+    <select id="fh-filter" class="input-dark py-1.5 text-xs">
+      <option value="all">Tum Fonlar</option>
+      <option value="leveraged">Kaldircili (>%100)</option>
+      <option value="aggressive">Agresif (%50-100)</option>
+      <option value="moderate">Orta (%20-50)</option>
+    </select>
+    <input id="fh-search" class="input-dark py-1.5 text-xs" placeholder="Fon adi veya kodu ara..." style="width:200px">
+  </div>
+  <div class="overflow-y-auto" style="max-height:500px">
+    <table class="data-table text-xs"><thead><tr><th>KOD</th><th>FON ADI</th><th>KATEGORI</th><th class="text-right">HISSE %</th><th class="text-right">FIYAT</th><th class="text-right">PIYASA</th><th class="text-right">YATIRIMCI</th></tr></thead><tbody id="fh-body"></tbody></table>
+  </div>
+</div>
+</div>
+
+<!-- MARKET PAGE -->
+<div id="page-market" style="display:none">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+  <div class="glass-strong p-5"><div class="flex items-center gap-2 mb-4"><span class="w-7 h-7 rounded-lg flex items-center justify-center bg-sky-500/15 text-sky-400 text-xs">💱</span><span class="font-bold text-white text-sm">Doviz Kurlari</span></div><div id="fx-rates" class="space-y-2"></div></div>
+  <div class="glass-strong p-5"><div class="flex items-center gap-2 mb-4"><span class="w-7 h-7 rounded-lg flex items-center justify-center bg-amber-500/15 text-amber-400 text-xs">₿</span><span class="font-bold text-white text-sm">Kripto Para</span></div><div id="crypto-rates" class="space-y-2"></div></div>
+  <div class="glass-strong p-5"><div class="flex items-center gap-2 mb-4"><span class="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-500/15 text-emerald-400 text-xs">🥇</span><span class="font-bold text-white text-sm">Emtia & Metaller</span></div><div id="commodity-rates" class="space-y-2"></div></div>
+</div>
+
+<!-- VAP & Market Indicators -->
+<div class="mt-5">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="w-7 h-7 rounded-lg flex items-center justify-center bg-purple-500/15 text-purple-400 text-xs">📊</span>
+    <span class="font-bold text-white text-sm">VAP — Piyasa Gostergeleri</span>
+    <span class="text-[10px] text-dark-500 ml-2">vap.org.tr kaynakli veriler</span>
+  </div>
+  <div id="vap-indicators" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3"></div>
+</div>
+</div>
+
+<!-- KAP PAGE -->
+<div id="page-kap" style="display:none">
+<div class="flex gap-0.5 border-b border-dark-700/50 mb-5 overflow-x-auto">
+  <button onclick="showKapTab('disclosures')" id="ktab-disclosures" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">📢 Bildirimler</button>
+  <button onclick="showKapTab('companies')" id="ktab-companies" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🏢 Sirketler</button>
+  <button onclick="showKapTab('corporate')" id="ktab-corporate" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🎯 Kurumsal</button>
+  <button onclick="showKapTab('buybacks')" id="ktab-buybacks" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">💰 Gerialim</button>
+  <button onclick="showKapTab('ipo')" id="ktab-ipo" class="tab-link px-4 py-2.5 text-sm font-semibold whitespace-nowrap">🏆 IPO</button>
+</div>
+<div id="kap-disclosures">
+  <div class="glass-strong p-4 mb-4"><div class="flex items-center gap-3 flex-wrap">
+    <select id="kap-cat-filter" class="input-dark text-xs py-1.5"><option value="">Tum Kategoriler</option></select>
+    <input id="kap-sym-filter" placeholder="Sembol ara..." class="input-dark text-xs py-1.5 w-28">
+    <select id="kap-days-filter" class="input-dark text-xs py-1.5"><option value="7">Son 7 gun</option><option value="30" selected>Son 30 gun</option><option value="90">Son 90 gun</option><option value="365">Son 1 yil</option></select>
+    <button onclick="loadKapDisclosures()" class="btn btn-cyan text-[11px] py-1">🔍 Ara</button>
+  </div></div>
+  <div class="glass-strong p-5"><div class="overflow-y-auto" style="max-height:520px"><table class="data-table"><thead><tr><th>Sembol</th><th>Baslik</th><th>Kategori</th><th>Tarih</th><th>Katalizor</th></tr></thead><tbody id="kap-disc-body"><tr><td colspan="5" class="text-center text-dark-600 py-6">Filtre secin ve "Ara" basin</td></tr></tbody></table></div>
+  <div class="flex justify-between items-center mt-3 pt-3 border-t border-dark-700/30"><span id="kap-disc-count" class="text-xs text-dark-500"></span><div class="flex gap-1"><button onclick="kapDiscPage(-1)" class="btn btn-slate text-[10px] py-0.5 px-2">⬅</button><button onclick="kapDiscPage(1)" class="btn btn-slate text-[10px] py-0.5 px-2">➡</button></div></div></div>
+</div>
+<div id="kap-companies" style="display:none">
+  <div class="glass-strong p-4 mb-4"><div class="flex items-center gap-3"><input id="kap-com-search" placeholder="Sirket adi veya kodu ara..." class="input-dark text-xs py-1.5 w-48" onkeydown="if(event.key==='Enter')loadKapCompanies()"><button onclick="loadKapCompanies()" class="btn btn-cyan text-[11px] py-1">🔍 Ara</button></div></div>
+  <div class="glass-strong p-5"><div class="overflow-y-auto" style="max-height:520px"><table class="data-table"><thead><tr><th>Kod</th><th>Sirket</th><th>Sektor</th><th>Pazar</th></tr></thead><tbody id="kap-com-body"><tr><td colspan="4" class="text-center text-dark-600 py-6">Yukleniyor...</td></tr></tbody></table></div>
+  <div class="flex justify-between items-center mt-3 pt-3 border-t border-dark-700/30"><span id="kap-com-count" class="text-xs text-dark-500"></span><div class="flex gap-1"><button onclick="kapComPage(-1)" class="btn btn-slate text-[10px] py-0.5 px-2">⬅</button><button onclick="kapComPage(1)" class="btn btn-slate text-[10px] py-0.5 px-2">➡</button></div></div></div>
+</div>
+
+<!-- Company Detail Modal -->
+<div id="company-detail-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);overflow-y:auto;padding:20px">
+  <div class="max-w-5xl mx-auto">
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl">🏢</span>
+        <div>
+          <h2 id="cd-ticker" class="text-2xl font-bold text-white"></h2>
+          <p id="cd-name" class="text-sm text-dark-400"></p>
+        </div>
+      </div>
+      <button onclick="closeCompanyDetail()" class="btn btn-slate text-sm">✕ Kapat</button>
+    </div>
+
+    <!-- Price Card -->
+    <div id="cd-price-card" class="glass-strong p-5 mb-4">
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div><span class="text-dark-500 text-xs">Fiyat</span><div id="cd-price" class="text-xl font-bold text-white"></div></div>
+        <div><span class="text-dark-500 text-xs">Piyasa Degeri</span><div id="cd-mc" class="text-xl font-bold text-emerald-400"></div></div>
+        <div><span class="text-dark-500 text-xs">F/K (PE)</span><div id="cd-pe" class="text-xl font-bold text-sky-400"></div></div>
+        <div><span class="text-dark-500 text-xs">PD/DD (PB)</span><div id="cd-pb" class="text-xl font-bold text-amber-400"></div></div>
+        <div><span class="text-dark-500 text-xs">Temettu Verimi</span><div id="cd-div" class="text-xl font-bold text-purple-400"></div></div>
+        <div><span class="text-dark-500 text-xs">Gunluk Degisim</span><div id="cd-chg" class="text-xl font-bold"></div></div>
+      </div>
+    </div>
+
+    <!-- Price Chart -->
+    <div id="cd-price-chart" class="glass-strong p-5 mb-4" style="display:none">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-sm font-bold text-white">📈 Fiyat Grafigi (Son 1 Yil)</h3>
+        <div class="flex gap-1">
+          <button onclick="setChartRange('1M')" class="btn btn-slate text-[10px] py-0.5 px-2 chart-range-btn" data-range="1M">1A</button>
+          <button onclick="setChartRange('3M')" class="btn btn-slate text-[10px] py-0.5 px-2 chart-range-btn" data-range="3M">3A</button>
+          <button onclick="setChartRange('6M')" class="btn btn-slate text-[10px] py-0.5 px-2 chart-range-btn" data-range="6M">6A</button>
+          <button onclick="setChartRange('1Y')" class="btn btn-slate text-[10px] py-0.5 px-2 chart-range-btn active" data-range="1Y">1Y</button>
+        </div>
+      </div>
+      <div class="relative" style="height:280px">
+        <canvas id="cd-chart-canvas"></canvas>
+      </div>
+      <div id="cd-chart-tooltip" class="absolute hidden bg-dark-800/95 border border-dark-600 rounded-lg p-2 text-xs pointer-events-none z-50" style="min-width:140px"></div>
+    </div>
+
+    <!-- Financials -->
+    <div id="cd-financials" class="glass-strong p-5 mb-4" style="display:none">
+      <h3 class="text-sm font-bold text-white mb-3">📊 Mali Tablolar</h3>
+      <div class="overflow-x-auto"><table class="data-table text-xs"><thead><tr><th>Donem</th><th>Hasilat</th><th>Kar</th><th>EBITDA</th><th>Toplam Aktif</th><th>Borc</th><th>Ozkaynak</th></tr></thead><tbody id="cd-fin-body"></tbody></table></div>
+    </div>
+
+    <!-- Cash Flow -->
+    <div id="cd-cashflow" class="glass-strong p-5 mb-4" style="display:none">
+      <h3 class="text-sm font-bold text-white mb-3">💵 Nakit Akis</h3>
+      <div class="overflow-x-auto"><table class="data-table text-xs"><thead><tr><th>Donem</th><th>Isletme</th><th>Yatirim</th><th>Finansman</th><th>Net Degisim</th></tr></thead><tbody id="cd-cf-body"></tbody></table></div>
+    </div>
+
+    <!-- Shareholders + Management -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div id="cd-shareholders" class="glass-strong p-5" style="display:none">
+        <h3 class="text-sm font-bold text-white mb-3">👥 Ortaklar</h3>
+        <div class="overflow-y-auto" style="max-height:250px"><table class="data-table text-xs"><thead><tr><th>Ortak</th><th>Oran</th><th>Tip</th></tr></thead><tbody id="cd-sh-body"></tbody></table></div>
+      </div>
+      <div id="cd-management" class="glass-strong p-5" style="display:none">
+        <h3 class="text-sm font-bold text-white mb-3">👔 Yonetim Kurulu</h3>
+        <div class="overflow-y-auto" style="max-height:250px"><table class="data-table text-xs"><thead><tr><th>Ad</th><th>Unvan</th><th>Tip</th></tr></thead><tbody id="cd-mg-body"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- Disclosures -->
+    <div id="cd-disclosures" class="glass-strong p-5 mb-4" style="display:none">
+      <h3 class="text-sm font-bold text-white mb-3">📢 Son Bildirimler</h3>
+      <div class="overflow-y-auto" style="max-height:300px"><table class="data-table text-xs"><thead><tr><th>Tarih</th><th>Baslik</th><th>Kategori</th></tr></thead><tbody id="cd-disc-body"></tbody></table></div>
+    </div>
+
+    <!-- Buybacks -->
+    <div id="cd-buybacks" class="glass-strong p-5 mb-4" style="display:none">
+      <h3 class="text-sm font-bold text-white mb-3">💰 Pay Geri Alim Programlari</h3>
+      <div class="overflow-y-auto" style="max-height:250px"><table class="data-table text-xs"><thead><tr><th>Butce (TL)</th><th>Azami Pay</th><th>Geri Alinan</th><th>Sermaye %</th><th>Ort. Maliyet</th></tr></thead><tbody id="cd-bb-body"></tbody></table></div>
+    </div>
+
+    <!-- Corporate + Subsidiaries + IPO -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      <div id="cd-corporate" class="glass-strong p-5" style="display:none">
+        <h3 class="text-sm font-bold text-white mb-3">🎯 Kurumsal Islemler</h3>
+        <div id="cd-corp-body" class="text-xs text-dark-400"></div>
+      </div>
+      <div id="cd-subsidiaries" class="glass-strong p-5" style="display:none">
+        <h3 class="text-sm font-bold text-white mb-3">🏭 Bagli Ortakliklar</h3>
+        <div id="cd-sub-body" class="text-xs text-dark-400"></div>
+      </div>
+      <div id="cd-ipo" class="glass-strong p-5" style="display:none">
+        <h3 class="text-sm font-bold text-white mb-3">🏆 IPO Bilgisi</h3>
+        <div id="cd-ipo-body" class="text-xs text-dark-400"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="kap-corporate" style="display:none"><div class="glass-strong p-5"><div class="flex items-center justify-between mb-3"><span class="font-bold text-white text-sm">🎯 Kurumsal Islemler</span><button onclick="loadKapCorporate()" class="btn btn-slate text-[10px] py-1 px-2">🔄 Yenile</button></div><div class="overflow-y-auto" style="max-height:520px"><table class="data-table"><thead><tr><th>Sirket</th><th>Tip</th><th>Brut/Hisse</th><th>Net/Hisse</th><th>Verim</th><th>Hak Kullanim</th><th>Odeme</th><th>Durum</th></tr></thead><tbody id="kap-corp-body"><tr><td colspan="8" class="text-center text-dark-600 py-6">Yukleniyor...</td></tr></tbody></table></div><div class="flex justify-between items-center mt-3 pt-3 border-t border-dark-700/30"><span id="kap-corp-count" class="text-xs text-dark-500"></span><div class="flex gap-1"><button onclick="kapCorpPage(-1)" class="btn btn-slate text-[10px] py-0.5 px-2">⬅</button><button onclick="kapCorpPage(1)" class="btn btn-slate text-[10px] py-0.5 px-2">➡</button></div></div></div></div>
+<div id="kap-buybacks" style="display:none"><div class="glass-strong p-5"><div class="flex items-center justify-between mb-3"><span class="font-bold text-white text-sm">💰 Pay Gerialim Programlari</span><button onclick="loadKapBuybacks()" class="btn btn-slate text-[10px] py-1 px-2">🔄 Yenile</button></div><div class="overflow-y-auto" style="max-height:520px"><table class="data-table"><thead><tr><th>Sirket</th><th>Butce</th><th>Azami Pay</th><th>Geri Alinan</th><th>Sermaye %</th><th>Ort. Maliyet</th></tr></thead><tbody id="kap-bb-body"><tr><td colspan="6" class="text-center text-dark-600 py-6">Yukleniyor...</td></tr></tbody></table></div><div class="flex justify-between items-center mt-3 pt-3 border-t border-dark-700/30"><span id="kap-bb-count" class="text-xs text-dark-500"></span><div class="flex gap-1"><button onclick="kapBbPage(-1)" class="btn btn-slate text-[10px] py-0.5 px-2">⬅</button><button onclick="kapBbPage(1)" class="btn btn-slate text-[10px] py-0.5 px-2">➡</button></div></div></div></div>
+<div id="kap-ipo" style="display:none"><div class="glass-strong p-5"><div class="flex items-center justify-between mb-3"><span class="font-bold text-white text-sm">🏆 Halka Arz (IPO)</span><button onclick="loadKapIpo()" class="btn btn-slate text-[10px] py-1 px-2">🔄 Yenile</button></div><div class="overflow-y-auto" style="max-height:520px"><table class="data-table"><thead><tr><th>Sirket</th><th>Fiyat</th><th>Iskonto</th><th>Dagitim</th><th>Yatirim %</th><th>Ar-Ge %</th><th>Sermaye %</th><th>Borc %</th></tr></thead><tbody id="kap-ipo-body"><tr><td colspan="8" class="text-center text-dark-600 py-6">Yukleniyor...</td></tr></tbody></table></div><div class="flex justify-between items-center mt-3 pt-3 border-t border-dark-700/30"><span id="kap-ipo-count" class="text-xs text-dark-500"></span><div class="flex gap-1"><button onclick="kapIpoPage(-1)" class="btn btn-slate text-[10px] py-0.5 px-2">⬅</button><button onclick="kapIpoPage(1)" class="btn btn-slate text-[10px] py-0.5 px-2">➡</button></div></div></div></div>
+</div>
+
+<!-- SCHEDULE PAGE -->
+<div id="page-schedule" style="display:none">
+<div class="glass-strong p-5 mb-5">
+  <div class="flex items-center justify-between mb-4"><div class="flex items-center gap-2.5"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500/15 text-emerald-400 text-sm">⏰</span><span class="font-bold text-white text-sm">Siradaki Calisma Zamanlari</span></div><button onclick="loadSchedule()" class="btn btn-slate text-[10px] py-1 px-2">🔄 Yenile</button></div>
+  <div id="next-runs-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3"><div class="text-dark-600 text-xs">Yukleniyor...</div></div>
+</div>
+<div class="glass-strong p-5">
+  <div class="flex items-center justify-between mb-5"><div class="flex items-center gap-2.5"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-dark-800 text-sm">⚙️</span><span class="font-bold text-white text-sm">Zamanlama Ayarlari</span></div><button onclick="saveSchedule()" class="btn btn-emerald">💾 Kaydet</button></div>
+  <div class="mb-5 p-4 rounded-xl bg-dark-950/50 border border-dark-700/30">
+    <div class="flex items-center gap-2 mb-3"><span class="text-sky-400 font-bold text-sm">📈 KAP Worker</span></div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div><label class="text-[10px] text-dark-500 uppercase tracking-wider">Durum</label><label class="toggle mt-1.5"><input type="checkbox" id="kap-enabled" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></label></div>
+      <div><label class="text-[10px] text-dark-500 uppercase tracking-wider">Mod</label><select id="kap-mode" class="input-dark w-full mt-1.5 py-1.5"><option value="manual">Sadece Manuel</option><option value="daily" selected>Her Gun</option><option value="interval">Belirli Aralikla</option></select></div>
+      <div id="kap-time-group"><label class="text-[10px] text-dark-500 uppercase tracking-wider">Saat</label><input type="time" id="kap-time" value="02:00" class="input-dark w-full mt-1.5 py-1.5"></div>
+      <div id="kap-interval-group" style="display:none"><label class="text-[10px] text-dark-500 uppercase tracking-wider">Aralik (dk)</label><input type="number" id="kap-interval" value="60" min="5" class="input-dark w-full mt-1.5 py-1.5"></div>
+    </div>
+  </div>
+  <div class="p-4 rounded-xl bg-dark-950/50 border border-dark-700/30">
+    <div class="flex items-center gap-2 mb-3"><span class="text-purple-400 font-bold text-sm">💹 TEFAS Worker</span></div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div><label class="text-[10px] text-dark-500 uppercase tracking-wider">Durum</label><label class="toggle mt-1.5"><input type="checkbox" id="tefas-enabled" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></label></div>
+      <div><label class="text-[10px] text-dark-500 uppercase tracking-wider">Mod</label><select id="tefas-mode" class="input-dark w-full mt-1.5 py-1.5"><option value="manual">Sadece Manuel</option><option value="daily" selected>Her Gun</option><option value="interval">Belirli Aralikla</option></select></div>
+      <div id="tefas-time-group"><label class="text-[10px] text-dark-500 uppercase tracking-wider">Saat</label><input type="time" id="tefas-time" value="03:00" class="input-dark w-full mt-1.5 py-1.5"></div>
+      <div id="tefas-interval-group" style="display:none"><label class="text-[10px] text-dark-500 uppercase tracking-wider">Aralik (dk)</label><input type="number" id="tefas-interval" value="60" min="5" class="input-dark w-full mt-1.5 py-1.5"></div>
+    </div>
+    <div class="mt-3"><label class="text-[10px] text-dark-500 uppercase tracking-wider">Gecmis Yil</label><select id="tefas-years" class="input-dark mt-1.5 py-1.5" style="width:100px"><option value="1">1 Yil</option><option value="2">2 Yil</option><option value="3">3 Yil</option><option value="5" selected>5 Yil</option></select></div>
+  </div>
+</div>
+</div>
+
+
+<!-- ══════ TEKNIK ANALIZ SAYFASI ══════ -->
+<div id="page-technical" style="display:none">
+<div class="glass-strong p-5 mb-4">
+  <div class="flex items-center gap-4 flex-wrap">
+    <div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-cyan-500/15 text-cyan-400 text-sm">📊</span><span class="font-bold text-white">Teknik Analiz:</span></div>
+    <input id="tech-ticker" type="text" placeholder="Hisse kodu (THYAO)" class="input-dark py-1.5 px-3 w-36 text-sm" value="THYAO">
+    <select id="tech-period" class="input-dark py-1.5 text-sm"><option value="1mo">1 Ay</option><option value="3mo" selected>3 Ay</option><option value="6mo">6 Ay</option><option value="1y">1 Yil</option></select>
+    <button onclick="loadTechnical()" class="btn btn-cyan">🔍 Analiz Et</button>
+  </div>
+</div>
+<div id="tech-result" class="hidden">
+  <div id="tech-signal-banner" class="rounded-xl p-4 mb-4 text-center font-bold text-lg"></div>
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-4" id="tech-indicators"></div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="glass-strong p-4"><h3 class="text-sm font-bold text-white mb-3">📈 Fiyat + Bollinger Bantlari</h3><canvas id="tech-chart" height="250"></canvas></div>
+    <div class="glass-strong p-4"><h3 class="text-sm font-bold text-white mb-3">📊 RSI + MACD</h3><canvas id="tech-rsi-chart" height="250"></canvas></div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+    <div class="glass-strong p-4"><h3 class="text-sm font-bold text-white mb-2">🎯 Pivot Noktalari</h3><div id="tech-pivots"></div></div>
+    <div class="glass-strong p-4"><h3 class="text-sm font-bold text-white mb-2">📏 Hareketli Ortalamalar</h3><div id="tech-ma"></div></div>
+    <div class="glass-strong p-4"><h3 class="text-sm font-bold text-white mb-2">🧭 Supertrend</h3><div id="tech-supertrend"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ══════ SCREENER SAYFASI ══════ -->
+<div id="page-screener" style="display:none">
+<div class="glass-strong p-5 mb-4">
+  <div class="flex items-center gap-4 flex-wrap">
+    <div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-amber-500/15 text-amber-400 text-sm">🔍</span><span class="font-bold text-white">Hisse Tarama:</span></div>
+    <select id="screener-preset" class="input-dark py-1.5 text-sm">
+      <option value="oversold">Asiri Satim (RSI&lt;30)</option>
+      <option value="overbought">Asiri Alim (RSI&gt;70)</option>
+      <option value="bullish_momentum">Yukselis Momentumu</option>
+      <option value="bearish_momentum">Dusus Momentumu</option>
+      <option value="high_volume">Yuksek Hacim</option>
+      <option value="big_gainers">Gunun Kazananlari</option>
+      <option value="big_losers">Gunun Kaybedenleri</option>
+      <option value="macd_bullish">MACD AL Sinyali</option>
+    </select>
+    <button onclick="loadScreener()" class="btn btn-amber">🔍 Tara</button>
+    <span id="screener-count" class="text-dark-500 text-xs"></span>
+  </div>
+</div>
+<div id="screener-result" class="glass-strong p-4">
+  <table class="w-full text-xs"><thead><tr class="text-dark-500 border-b border-dark-700/30"><th class="text-left py-2">Hisse</th><th class="text-right">Fiyat</th><th class="text-right">Degisim%</th><th class="text-right">RSI</th><th class="text-right">MACD</th><th class="text-right">Hacim</th></tr></thead>
+  <tbody id="screener-body"><tr><td colspan="6" class="text-center py-6 text-dark-600">Tarama icin preset secin</td></tr></tbody></table>
+</div>
+</div>
+
+<!-- ══════ MAKRO VERI SAYFASI ══════ -->
+<div id="page-macro" style="display:none">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+  <div class="glass-strong p-5">
+    <div class="flex items-center gap-2 mb-3"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/15 text-red-400 text-sm">📉</span><span class="font-bold text-white text-sm">TCMB Enflasyon (TUFE/UBE)</span></div>
+    <div class="flex gap-2 mb-3">
+      <button onclick="loadInflation('tufe')" class="btn btn-sm btn-slate" id="inf-tufe">TUFE</button>
+      <button onclick="loadInflation('ufe')" class="btn btn-sm btn-slate" id="inf-ufe">UBE</button>
+    </div>
+    <div id="inflation-stats" class="grid grid-cols-2 gap-2 mb-3"></div>
+    <div class="max-h-80 overflow-y-auto"><table class="w-full text-xs"><thead><tr class="text-dark-500 border-b border-dark-700/30"><th class="text-left py-1">Ay</th><th class="text-right">Yillik%</th><th class="text-right">Aylik%</th></tr></thead>
+    <tbody id="inflation-body"></tbody></table></div>
+  </div>
+  <div class="glass-strong p-5">
+    <div class="flex items-center gap-2 mb-3"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-green-500/15 text-green-400 text-sm">💱</span><span class="font-bold text-white text-sm">Doviz Kurlari</span><button onclick="loadFx()" class="btn btn-sm btn-slate ml-auto">🔄</button></div>
+    <div id="fx-body" class="max-h-80 overflow-y-auto"></div>
+  </div>
+</div>
+</div>
+
+<!-- ══════ BUFFETT DEGERLEME SAYFASI ══════ -->
+<div id="page-buffett" style="display:none">
+<div class="glass-strong p-5 mb-4">
+  <div class="flex items-center gap-4 flex-wrap">
+    <div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-yellow-500/15 text-yellow-400 text-sm">🎯</span><span class="font-bold text-white">Buffett Degerleme:</span></div>
+    <input id="buffett-ticker" type="text" placeholder="Hisse kodu" class="input-dark py-1.5 px-3 w-36 text-sm" value="THYAO">
+    <button onclick="loadBuffett()" class="btn btn-yellow">🎯 Analiz Et</button>
+  </div>
+</div>
+<div id="buffett-result" class="hidden">
+  <div id="buffett-rating" class="rounded-xl p-4 mb-4 text-center font-bold text-lg"></div>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4" id="buffett-metrics"></div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="glass-strong p-4"><h3 class="text-sm font-bold text-white mb-2">💰 Owner Earnings</h3><div id="buffett-oe"></div></div>
+    <div class="glass-strong p-4"><h3 class="text-sm font-bold text-white mb-2">📊 DCF Degerleme</h3><div id="buffett-dcf"></div></div>
+  </div>
+  <div class="glass-strong p-4 mt-4"><h3 class="text-sm font-bold text-white mb-2">🔑 Temel Oranlar</h3><div id="buffett-ratios" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div></div>
+</div>
+</div>
+
+<!-- ══════ ABD PIYASASI SAYFASI ══════ -->
+<div id="page-us" style="display:none">
+<div class="glass-strong p-5 mb-4">
+  <div class="flex items-center gap-4 flex-wrap">
+    <div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-500/15 text-blue-400 text-sm">🇺🇸</span><span class="font-bold text-white">ABD Hisse Analizi:</span></div>
+    <input id="us-ticker" type="text" placeholder="Hisse kodu (AAPL)" class="input-dark py-1.5 px-3 w-36 text-sm" value="AAPL">
+    <button onclick="loadUS()" class="btn btn-blue">🔍 Analiz Et</button>
+  </div>
+</div>
+<div id="us-result" class="glass-strong p-4">
+  <div id="us-data"></div>
+</div>
+</div>
+
+<!-- ══════ EKONOMIK TAKVIM SAYFASI ══════ -->
+<div id="page-calendar" style="display:none">
+<div class="glass-strong p-5 mb-4">
+  <div class="flex items-center gap-4 flex-wrap">
+    <div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-500/15 text-indigo-400 text-sm">📅</span><span class="font-bold text-white">Ekonomik Takvim:</span></div>
+    <select id="cal-countries" class="input-dark py-1.5 text-sm" multiple style="min-width:200px">
+      <option value="TR" selected>Turkiye</option>
+      <option value="US" selected>ABD</option>
+      <option value="EU">Euro Bolgesi</option>
+      <option value="DE">Almanya</option>
+      <option value="GB">Ingiltere</option>
+      <option value="JP">Japonya</option>
+      <option value="CN">Cin</option>
+    </select>
+    <select id="cal-period" class="input-dark py-1.5 text-sm">
+      <option value="today">Bugun</option>
+      <option value="this_week" selected>Bu Hafta</option>
+      <option value="this_month">Bu Ay</option>
+    </select>
+    <button onclick="loadCalendar()" class="btn btn-indigo">📅 Getir</button>
+  </div>
+</div>
+<div class="glass-strong p-4">
+  <div id="cal-count" class="text-dark-500 text-xs mb-2"></div>
+  <div class="max-h-[500px] overflow-y-auto">
+    <table class="w-full text-xs"><thead><tr class="text-dark-500 border-b border-dark-700/30"><th class="text-left py-2">Tarih</th><th class="text-left">Ulke</th><th class="text-left">Olay</th><th class="text-center">Onem</th><th class="text-right">Gercek</th><th class="text-right">Tahmin</th><th class="text-right">Onceki</th></tr></thead>
+    <tbody id="cal-body"><tr><td colspan="7" class="text-center py-6 text-dark-600">Takvim icin ulke ve donem secin</td></tr></tbody></table>
+  </div>
+</div>
+</div>
+
+<!-- API PAGE -->
+<div id="page-api" style="display:none">
+<div class="glass-strong p-5 mb-4">
+  <div class="flex items-center gap-3 mb-4">
+    <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg,#06b6d4,#8b5cf6)">
+      <span class="text-white text-lg">🔌</span>
+    </div>
+    <div>
+      <h2 class="font-bold text-white text-lg">API Kullanim Haritasi</h2>
+      <p class="text-xs text-dark-500">Tum endpoint'ler, veri setleri ve kullanim ornekleri</p>
+    </div>
+    <div class="ml-auto flex items-center gap-2">
+      <span class="text-xs text-dark-500">Public URL:</span>
+      <code class="text-cyan-400 text-xs bg-dark-900 px-2 py-1 rounded-lg border border-dark-700/50" id="api-public-url"></code>
+      <button onclick="copyApiUrl()" class="btn btn-cyan text-xs py-1 px-2">📋 Kopyala</button>
+    </div>
+  </div>
+
+  <!-- API USAGE STATS -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-5" id="api-stats">
+    <div class="stat-chip"><div class="text-lg font-bold text-cyan-400" id="api-stat-endpoints">10</div><div class="text-[10px] text-dark-500 mt-1">Endpoint</div></div>
+    <div class="stat-chip"><div class="text-lg font-bold text-emerald-400" id="api-stat-tables">43</div><div class="text-[10px] text-dark-500 mt-1">Tablo</div></div>
+    <div class="stat-chip"><div class="text-lg font-bold text-purple-400" id="api-stat-columns">335</div><div class="text-[10px] text-dark-500 mt-1">Sutun</div></div>
+    <div class="stat-chip"><div class="text-lg font-bold text-amber-400" id="api-stat-records">2.2M+</div><div class="text-[10px] text-dark-500 mt-1">Toplam Kayit</div></div>
+    <div class="stat-chip"><div class="text-lg font-bold text-rose-400" id="api-stat-tickers">1,014</div><div class="text-[10px] text-dark-500 mt-1">Sirket</div></div>
+    <div class="stat-chip"><div class="text-lg font-bold text-blue-400" id="api-stat-funds">2,598</div><div class="text-[10px] text-dark-500 mt-1">Fon</div></div>
+  </div>
+
+  <!-- DATA DISTRIBUTION CHART -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+    <div class="glass-strong p-4">
+      <h3 class="text-sm font-bold text-white mb-3">📊 Veri Dagilimi (Tablo Bazli)</h3>
+      <div id="api-chart-tables" class="space-y-2"></div>
+    </div>
+    <div class="glass-strong p-4">
+      <h3 class="text-sm font-bold text-white mb-3">🔌 Endpoint Kullanimi</h3>
+      <div id="api-chart-endpoints" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- API EXPLORER — INTERACTIVE PLAYGROUND -->
+  <div class="glass-strong p-5 mb-5">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-cyan-500/15 text-cyan-400 text-sm">🧪</span>
+      <span class="font-bold text-white text-sm">API Playground</span>
+      <span class="text-[10px] text-dark-500 ml-2">Dogrudan test edin, komut girin, sonucu gorun</span>
+    </div>
+
+    <!-- METHOD + URL ROW -->
+    <div class="flex gap-2 mb-3">
+      <select id="api-method" class="input-dark py-2 text-sm font-bold" style="width:90px;background:#0d1117">
+        <option value="GET" style="color:#10b981">GET</option>
+        <option value="POST" style="color:#f59e0b">POST</option>
+      </select>
+      <input type="text" id="api-url-input" class="input-dark py-2 text-sm font-mono flex-1" 
+             value="/api/export/companies" placeholder="/api/export/...">
+      <button onclick="runApiPlayground()" class="btn btn-cyan" id="api-run-btn">▶ Calistir</button>
+      <button onclick="clearApiOutput()" class="btn btn-dark text-xs">🗑️ Temizle</button>
+    </div>
+
+    <!-- QUICK ENDPOINTS -->
+    <div class="flex flex-wrap gap-1.5 mb-3">
+      <button onclick="setEndpoint('/api/export/companies')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">🏢 Sirketler</button>
+      <button onclick="setEndpoint('/api/export/search?q=THYAO')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">🔍 THYAO Ara</button>
+      <button onclick="setEndpoint('/api/export/all/THYAO')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">📊 THYAO Tumu</button>
+      <button onclick="setEndpoint('/api/export/financials/GARAN')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">💰 GARAN Finansal</button>
+      <button onclick="setEndpoint('/api/export/funds')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">🏦 TEFAS Fonlari</button>
+      <button onclick="setEndpoint('/api/export/fund/TAU')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">📈 TAU Fon</button>
+      <button onclick="setEndpoint('/api/export/bulk?limit_per_table=3')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">📦 Toplu</button>
+      <button onclick="setEndpoint('/api/export/schema')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">🗄️ Schema</button>
+      <button onclick="setEndpoint('/api/export/csv/kap_financials')" class="text-[10px] px-2 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-cyan-400 hover:bg-dark-700 transition-all">📄 CSV</button>
+    </div>
+
+    <!-- HEADERS + BODY (TABS) -->
+    <div class="flex gap-2 mb-3">
+      <button onclick="showApiTab('headers')" class="text-[10px] px-3 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-white transition-all" id="api-tab-headers">📋 Headers</button>
+      <button onclick="showApiTab('body')" class="text-[10px] px-3 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-white transition-all" id="api-tab-body">📝 Body</button>
+      <button onclick="showApiTab('history')" class="text-[10px] px-3 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-white transition-all" id="api-tab-history">📜 Gecmis</button>
+      <button onclick="showApiTab('curl')" class="text-[10px] px-3 py-1 rounded-lg bg-dark-700/50 text-dark-400 hover:text-white transition-all" id="api-tab-curl">⌨️ cURL</button>
+    </div>
+
+    <!-- HEADERS PANEL -->
+    <div id="api-panel-headers" class="mb-3">
+      <textarea id="api-headers" class="input-dark py-2 text-xs font-mono w-full" rows="3" 
+                placeholder="X-API-Key: fbkey-...\nAccept: application/json">X-API-Key: 
+Accept: application/json</textarea>
+    </div>
+
+    <!-- BODY PANEL -->
+    <div id="api-panel-body" class="mb-3" style="display:none">
+      <textarea id="api-body" class="input-dark py-2 text-xs font-mono w-full" rows="4" 
+                placeholder='{"key": "value"}'></textarea>
+    </div>
+
+    <!-- HISTORY PANEL -->
+    <div id="api-panel-history" class="mb-3" style="display:none">
+      <div id="api-history-list" class="space-y-1 max-h-40 overflow-auto">
+        <div class="text-dark-600 text-xs">Henuz istek yapilmadi...</div>
+      </div>
+    </div>
+
+    <!-- CURL PANEL -->
+    <div id="api-panel-curl" class="mb-3" style="display:none">
+      <div class="flex gap-2">
+        <textarea id="api-curl-input" class="input-dark py-2 text-xs font-mono flex-1" rows="3"
+                  placeholder='curl -X GET "http://localhost:3000/api/export/companies" -H "X-API-Key: fbkey-..."'></textarea>
+        <button onclick="importCurl()" class="btn btn-purple text-xs self-start">📥 Import</button>
+      </div>
+    </div>
+
+    <!-- RESPONSE OUTPUT -->
+    <div class="flex items-center gap-2 mb-2">
+      <span class="text-[10px] text-dark-500" id="api-response-info">Yanit bekleniyor...</span>
+      <button onclick="copyApiResponse()" class="text-[10px] px-2 py-0.5 rounded bg-dark-700/50 text-dark-400 hover:text-cyan-400 transition-all" id="api-copy-btn" style="display:none">📋 Kopyala</button>
+      <button onclick="downloadApiResponse()" class="text-[10px] px-2 py-0.5 rounded bg-dark-700/50 text-dark-400 hover:text-cyan-400 transition-all" id="api-download-btn" style="display:none">💾 Indir</button>
+    </div>
+    <div class="terminal" id="api-explorer-output" style="height:300px;overflow:auto">
+      <div class="text-dark-600">Endpoint secin veya URL girin ve Calistir'a basin...</div>
+    </div>
+  </div>
+
+  <!-- ENDPOINT DOCUMENTATION -->
+  <div class="glass-strong p-5 mb-5">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-500/15 text-purple-400 text-sm">📖</span>
+      <span class="font-bold text-white text-sm">Endpoint Dokumani</span>
+    </div>
+    <div id="api-docs" class="space-y-4"></div>
+  </div>
+
+  <!-- INTEGRATION CODE -->
+  <div class="glass-strong p-5">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500/15 text-emerald-400 text-sm">💻</span>
+      <span class="font-bold text-white text-sm">Entegrasyon Kodu</span>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div>
+        <div class="flex items-center gap-2 mb-2"><span class="text-xs font-bold text-dark-500">PYTHON</span></div>
+        <pre class="terminal text-xs p-3" style="height:200px"><code>import requests
+
+API = "<span id="api-code-url"></span>"
+
+# Sirket ara
+r = requests.get(f"{API}/api/export/search?q=THYAO")
+companies = r.json()
+
+# Tum verileri cek
+r = requests.get(f"{API}/api/export/all/THYAO")
+data = r.json()
+print(f"Finansal: {len(data['financials'])}")
+print(f"Bildirim: {len(data['disclosures'])}")
+
+# Toplu export
+r = requests.get(f"{API}/api/export/bulk")
+all_data = r.json()</code></pre>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 mb-2"><span class="text-xs font-bold text-dark-500">JAVASCRIPT</span></div>
+        <pre class="terminal text-xs p-3" style="height:200px"><code>const API = "<span id="api-code-url-js"></span>";
+
+// Sirket ara
+const res = await fetch(`${API}/api/export/search?q=THYAO`);
+const data = await res.json();
+
+// Tum verileri cek
+const allRes = await fetch(`${API}/api/export/all/THYAO`);
+const allData = await allRes.json();
+console.log(allData.financials);
+console.log(allData.shareholders);</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+<script src="/static/app.js?v=2"></script>
+</body>
+</html>

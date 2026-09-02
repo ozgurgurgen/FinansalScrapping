@@ -1,0 +1,29 @@
+{
+  "kap_worker": {
+    "enabled": true,
+    "mode": "interval",
+    "hour": 2,
+    "minute": 0,
+    "interval_minutes": 60,
+    "modules": [
+      "seed",
+      "disclosures",
+      "corporate",
+      "buybacks",
+      "ipo"
+    ]
+  },
+  "tefas_worker": {
+    "enabled": true,
+    "mode": "interval",
+    "hour": 3,
+    "minute": 0,
+    "interval_minutes": 60,
+    "years_back": 5
+  },
+  "market_data_worker": {
+    "enabled": true,
+    "mode": "interval",
+    "interval_minutes": 60
+  }
+}

@@ -1,0 +1,330 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Finance Pipeline API",
+    "description": "BIST şirketleri, TEFAS fonları ve finansal veriler için API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://signal-invitations-draws-perspectives.trycloudflare.com",
+      "description": "Public API (Cloudflare Tunnel)"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local API"
+    }
+  ],
+  "paths": {
+    "/api/export/search": {
+      "get": {
+        "operationId": "searchCompanies",
+        "summary": "Şirket Ara",
+        "description": "BIST şirketlerini ticker veya isim ile ara",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Arama terimi (ticker veya şirket adı)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 20 },
+            "description": "Maksimum sonuç sayısı"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arama sonuçları",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "ticker": { "type": "string", "example": "THYAO" },
+                      "company_name": { "type": "string", "example": "Türk Hava Yolları" },
+                      "sector": { "type": "string", "example": "Ulaştırma" },
+                      "market": { "type": "string", "example": "BIST" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/all/{ticker}": {
+      "get": {
+        "operationId": "getCompanyAllData",
+        "summary": "Şirket Tüm Veriler",
+        "description": "Bir şirketin TÜM verilerini getir: finansal, bildirim, ortaklar, yönetim, bağlı ortaklık, nakit akışı",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Hisse kodu (ör: THYAO, ASELS, GARAN)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Şirketin tüm verileri",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ticker": { "type": "string" },
+                    "company": { "type": "object" },
+                    "financials": { "type": "array" },
+                    "disclosures": { "type": "array" },
+                    "shareholders": { "type": "array" },
+                    "management": { "type": "array" },
+                    "subsidiaries": { "type": "array" },
+                    "cashflows": { "type": "array" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/financials/{ticker}": {
+      "get": {
+        "operationId": "getFinancials",
+        "summary": "Finansal Veriler",
+        "description": "Bir şirketin finansal tablolarını getir (gelir, kâr, oranlar, F/K, PD/DD)",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Hisse kodu (ör: THYAO)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Finansal veriler",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ticker": { "type": "string" },
+                    "company_name": { "type": "string" },
+                    "financials": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "year": { "type": "integer" },
+                          "period": { "type": "integer" },
+                          "revenue": { "type": "number" },
+                          "gross_profit": { "type": "number" },
+                          "ebitda": { "type": "number" },
+                          "net_profit": { "type": "number" },
+                          "pe_ratio": { "type": "number" },
+                          "pb_ratio": { "type": "number" },
+                          "roe": { "type": "number" },
+                          "roa": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/funds": {
+      "get": {
+        "operationId": "getFunds",
+        "summary": "TEFAS Fonları",
+        "description": "TEFAS yatırım fonlarını listele (YAT, EMK, BYF tipleri)",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 100 },
+            "description": "Maksimum fon sayısı"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fon listesi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "code": { "type": "string", "example": "TCD" },
+                      "title": { "type": "string" },
+                      "kind": { "type": "string", "enum": ["YAT", "EMK", "BYF"] },
+                      "current_price": { "type": "number" },
+                      "market_cap": { "type": "number" },
+                      "investor_count": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/fund/{code}": {
+      "get": {
+        "operationId": "getFundDetail",
+        "summary": "Fon Detay",
+        "description": "Bir fondaki detaylı bilgi ve fiyat geçmişini getir",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Fon kodu (ör: TCD, GGS)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fon detayı ve fiyat geçmişi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string" },
+                    "title": { "type": "string" },
+                    "kind": { "type": "string" },
+                    "current_price": { "type": "number" },
+                    "market_cap": { "type": "number" },
+                    "price_history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": { "type": "string" },
+                          "price": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/bulk": {
+      "get": {
+        "operationId": "bulkExport",
+        "summary": "Toplu Veri Export",
+        "description": "Tek istekte birden fazla tablonun tüm verilerini getir",
+        "parameters": [
+          {
+            "name": "tables",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Virgülle ayrılmış tablo listesi (companies,financials,disclosures,shareholders,management,subsidiaries,cashflows,funds,fund_prices,prices,price_history)"
+          },
+          {
+            "name": "limit_per_table",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Her tabloda maks satır (0=sınırsız)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Toplu veri",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "İstenen tabloların verileri + _meta bilgisi"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/companies": {
+      "get": {
+        "operationId": "listCompanies",
+        "summary": "Tüm Şirketler",
+        "description": "BIST'teki tüm şirketleri listele (ticker, sektör, piyasa)",
+        "responses": {
+          "200": {
+            "description": "Şirket listesi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "integer" },
+                      "ticker": { "type": "string" },
+                      "company_name": { "type": "string" },
+                      "sector": { "type": "string" },
+                      "market": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/csv/{table}": {
+      "get": {
+        "operationId": "downloadCSV",
+        "summary": "CSV İndir",
+        "description": "Tabloyu CSV dosyası olarak indir",
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["kap_companies", "kap_financials", "kap_disclosures", "kap_shareholders", "kap_management", "kap_subsidiaries", "kap_cashflows", "tefas_funds", "bist_stock_prices", "bist_price_history"]
+            },
+            "description": "Tablo adı"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV dosyası",
+            "content": {
+              "text/csv": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

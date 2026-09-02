@@ -1,0 +1,113 @@
+{
+  "tools": [
+    {
+      "name": "search_companies",
+      "description": "BIST şirketlerini ticker veya isim ile ara. Sonuçlar: ticker, şirket adı, sektör, piyasa bilgisi döndürür.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Arama terimi (ticker kodu veya şirket adı, ör: THYAO, Garanti)"
+          }
+        },
+        "required": ["q"]
+      },
+      "endpoint": {
+        "url": "https://signal-invitations-draws-perspectives.trycloudflare.com/api/export/search",
+        "method": "GET",
+        "query_parameters": {
+          "q": "{{q}}",
+          "limit": "10"
+        }
+      }
+    },
+    {
+      "name": "get_company_all_data",
+      "description": "Bir şirketin TÜM verilerini tek istekte getir: finansal tablolar, son bildirimler, pay sahipleri, yönetim kurulu, bağlı ortaklıklar, nakit akış verileri.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "description": "Hisse kodu (ör: THYAO, ASELS, GARAN, KCHOL)"
+          }
+        },
+        "required": ["ticker"]
+      },
+      "endpoint": {
+        "url": "https://signal-invitations-draws-perspectives.trycloudflare.com/api/export/all/{ticker}",
+        "method": "GET"
+      }
+    },
+    {
+      "name": "get_financials",
+      "description": "Bir şirketin finansal tablolarını getir: gelir, brüt kâr, FAVÖK, net kâr, F/K, PD/DD, ROE, ROA, marjlar.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "description": "Hisse kodu (ör: THYAO)"
+          }
+        },
+        "required": ["ticker"]
+      },
+      "endpoint": {
+        "url": "https://signal-invitations-draws-perspectives.trycloudflare.com/api/export/financials/{ticker}",
+        "method": "GET"
+      }
+    },
+    {
+      "name": "get_funds",
+      "description": "TEFAS yatırım fonlarını listele. YAT (yatırım), EMK (emeklilik), BYF (borsa yatırım fonu) tiplerinde fonlar.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maksimum fon sayısı (varsayılan: 100)",
+            "default": 100
+          }
+        }
+      },
+      "endpoint": {
+        "url": "https://signal-invitations-draws-perspectives.trycloudflare.com/api/export/funds",
+        "method": "GET",
+        "query_parameters": {
+          "limit": "{{limit}}"
+        }
+      }
+    },
+    {
+      "name": "get_fund_detail",
+      "description": "Bir fondaki detaylı bilgi ve fiyat geçmişini getir.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Fon kodu (ör: TCD, GGS, YAC)"
+          }
+        },
+        "required": ["code"]
+      },
+      "endpoint": {
+        "url": "https://signal-invitations-draws-perspectives.trycloudflare.com/api/export/fund/{code}",
+        "method": "GET"
+      }
+    },
+    {
+      "name": "list_all_companies",
+      "description": "BIST'teki tüm şirketleri listele (1000+ şirket). Ticker, sektör ve piyasa bilgisi.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "endpoint": {
+        "url": "https://signal-invitations-draws-perspectives.trycloudflare.com/api/export/companies",
+        "method": "GET"
+      }
+    }
+  ]
+}
